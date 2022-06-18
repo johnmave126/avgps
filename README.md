@@ -19,6 +19,8 @@ Download apk at [Releases](https://github.com/johnmave126/avgps/releases).
 ![Satellite Page](/images/screenshot_satellite.png)
 
 ## Roadmap
-[ ] Manually add EFBs.
-[ ] Test other EFBs (help wanted).
-[ ] Clean up code.
+- [ ] Get a proper logo.
+- [ ] Manually add EFBs.
+- [ ] Test other EFBs (help wanted).
+- [ ] Clean up code.
+- [ ] Get it on Google Play.
