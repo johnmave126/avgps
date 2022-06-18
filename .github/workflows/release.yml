@@ -23,8 +23,8 @@ jobs:
         with:
           flutter-version: '3.0.2'
       - run: flutter pub get
-      - run: flutter analyze
-      - run: flutter test
+#      - run: flutter analyze
+#      - run: flutter test
       - run: flutter build apk --split-per-abi
       - uses: ncipollo/release-action@v1
         with:
