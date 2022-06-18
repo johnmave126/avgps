@@ -4,7 +4,7 @@ Transferring GPS-based location to EFBs.
 
 ## Install
 
-Download apk at [Releases](https://github.com/barbeau/gpstest/releases).
+Download apk at [Releases](https://github.com/johnmave126/avgps/releases).
 
 ## Features
 * Basic GPS reading and satellites information.
