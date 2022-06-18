@@ -68,9 +68,10 @@ fun generateOwnship(location: LocationData): ByteArray {
 
     // Altitude: 1 byte + high 4 bits
     // Miscellaneous Indicators: 1001, airborne, updated report, true track angle
-    val alt = ((mToFt(location.altitude) + 1000) / 25).roundToInt().coerceIn(0, 0xFFE)
-    report[11] = (alt shr 4).toByte()
-    report[12] = ((alt shl 4) or 0x9).toByte()
+    // TODO: we don't have pressure altitude, so leave it 0xFFF. We could add barometric data
+    //  for phones that support it.
+    report[11] = 0xFF.toByte()
+    report[12] = 0xF9.toByte()
 
     // Navigation Integrity Category: high 4 bits 0 = Unknown
     // Navigation Accuracy Category: low 4 bits
