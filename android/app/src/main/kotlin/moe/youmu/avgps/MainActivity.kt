@@ -148,7 +148,6 @@ class MainActivity : FlutterActivity() {
                             Manifest.permission.ACCESS_FINE_LOCATION
                         ), LOCATION_PERMISSION_CODE
                     )
-                    result.success(null)
                 }
                 "requestLocationBackgroundPermission" -> {
                     permissionResult = result
@@ -156,7 +155,6 @@ class MainActivity : FlutterActivity() {
                         arrayOf(Manifest.permission.ACCESS_BACKGROUND_LOCATION),
                         BACKGROUND_LOCATION_PERMISSION_CODE
                     )
-                    result.success(null)
                 }
                 "setEFBEnabled" -> {
                     val host =

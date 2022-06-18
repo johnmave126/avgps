@@ -28,7 +28,7 @@ final Uri _sourceCodeUrl = Uri.parse('https://github.com/johnmave126/avGPS');
 String _leagalese =
     '''All information in the avGPS is provided "as is", with no guarantee of completeness, accuracy, timeliness or of the results obtained from the use of this information, and without warranty of any kind, express or implied, including, but not limited to warranties of performance, merchantability and fitness for a particular purpose.
 
-The author will not be liable to You or anyone else for any decision made or action taken in reliance on the information given by the Service or for any consequential, special or similar damages, even if advised of the possibility of such damages.''';
+The author will not be liable to You or anyone else for any decision made or action taken in reliance on the information given by avGPS or for any consequential, special or similar damages, even if advised of the possibility of such damages.''';
 
 class SettingsWidget extends StatelessWidget {
   final Settings settings;
