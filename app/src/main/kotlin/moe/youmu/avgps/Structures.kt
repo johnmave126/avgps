@@ -89,16 +89,3 @@ data class SatelliteData(
     val cnr: Float,
     val used: Boolean,
 )
-
-@Serializable
-data class EFBDiscoveryMessage(
-    val App: String,
-    val GDL90: PortInfo,
-) {
-    @Serializable
-    data class PortInfo(val port: Int) {
-        init {
-            require(port in 0..65535)
-        }
-    }
-}

@@ -228,13 +228,13 @@ class LocationService : Service() {
     }
 
     fun onEFBDiscovery(host: InetAddress, data: EFBDiscoveryMessage) {
-        val source = InetSocketAddress(host, data.GDL90.port)
+        val source = InetSocketAddress(host, data.gdl90.port)
         val elem = clientList.find { client -> client.source == source }
         val timestamp = Date.from(Instant.now())
         if (elem != null) {
             elem.lastDiscover = timestamp
         } else {
-            clientList.add(Client(source, data.App, timestamp, false))
+            clientList.add(Client(source, data.app, timestamp, false))
         }
     }
 
