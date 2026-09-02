@@ -60,6 +60,49 @@ object Gdl90Framer {
     }
 }
 
+/**
+ * Sequential buffer builder for constructing GDL90 binary payloads.
+ */
+class Gdl90PayloadWriter(capacity: Int) {
+    private val buffer: ByteBuffer = ByteBuffer.allocate(capacity)
+
+    fun writeByte(value: Int): Gdl90PayloadWriter {
+        buffer.put(value.toByte())
+        return this
+    }
+
+    fun writeInt16(value: Int): Gdl90PayloadWriter {
+        buffer.put((value shr 8).toByte())
+        buffer.put(value.toByte())
+        return this
+    }
+
+    fun writeInt24(value: Int): Gdl90PayloadWriter {
+        buffer.put((value shr 16).toByte())
+        buffer.put((value shr 8).toByte())
+        buffer.put(value.toByte())
+        return this
+    }
+
+    fun writeZeros(count: Int): Gdl90PayloadWriter {
+        repeat(count) {
+            buffer.put(0.toByte())
+        }
+        return this
+    }
+
+    fun writeFixedPadded(bytes: ByteArray, totalLength: Int, padByte: Byte = 0): Gdl90PayloadWriter {
+        val length = minOf(bytes.size, totalLength)
+        buffer.put(bytes, 0, length)
+        repeat(totalLength - length) {
+            buffer.put(padByte)
+        }
+        return this
+    }
+
+    fun toByteArray(): ByteArray = buffer.array()
+}
+
 fun makeGDL90(payload: ByteArray): ByteArray = Gdl90Framer.frame(payload)
 
 fun generateOwnship(location: LocationData): ByteArray {
