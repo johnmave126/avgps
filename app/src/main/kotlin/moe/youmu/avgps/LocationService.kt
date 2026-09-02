@@ -1,195 +1,92 @@
 package moe.youmu.avgps
 
 import android.Manifest
-import android.annotation.SuppressLint
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
-import android.content.Context
 import android.content.Intent
-import android.content.res.Configuration
-import android.location.GnssStatus
-import android.location.Location
-import android.location.LocationListener
-import android.location.LocationManager
-import android.location.OnNmeaMessageListener
+import android.content.pm.PackageManager
 import android.os.Binder
-import android.os.Handler
-import android.os.HandlerThread
 import android.os.IBinder
-import android.os.Looper
 import android.provider.Settings
 import android.util.Log
 import androidx.core.app.NotificationCompat
-import kotlinx.serialization.SerializationException
-import kotlinx.serialization.decodeFromString
-import kotlinx.serialization.json.Json
+import androidx.core.content.ContextCompat
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
+import java.io.IOException
 import java.net.DatagramPacket
 import java.net.DatagramSocket
-import java.net.InetAddress
 import java.net.InetSocketAddress
-import java.net.SocketException
-import java.nio.ByteBuffer
-import java.nio.CharBuffer
-import java.nio.charset.StandardCharsets
 import java.time.Instant
-import java.util.Date
 
 class LocationService : Service() {
+    companion object {
+        const val NOTIFICATION_CHANNEL_ID = "notify_channel"
+        private const val NOTIFICATION_ID = 11111111
+        private const val NOTIFICATION_CHANNEL_NAME = "GPS Server"
+        private const val NOTIFICATION_CHANNEL_DESC = "Indicate that the GPS server is activated to feed EFBs"
+        private const val TAG = "LocationService"
+    }
+
     inner class LocalBinder : Binder() {
-        fun getService(): LocationService {
-            return this@LocationService
-        }
+        fun getService(): LocationService = this@LocationService
     }
 
-    private val TAG = "LocationService"
-    private val NOTIFICATION_ID = 11111111
-    private val NOTIFICATION_ID_NAME = "server_notification"
-    private val NOTIFICATION_CHANNEL_ID = "notify_channel"
-    private val NOTIFICATION_CHANNEL_NAME = "GPS Server"
-    private val NOTIFICATION_CHANNEL_DESC = "Indicate that the GPS server is activated to feed EFBs"
-
-    private var deviceName = "avGPS@Android".toByteArray()
     private val binder: IBinder = LocalBinder()
+    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
+    private lateinit var gnssManager: GnssManager
+    private lateinit var discoveryServer: EfbDiscoveryServer
     private var notificationManager: NotificationManager? = null
-    private var locationManager: LocationManager? = null
-    private var serviceHandler: Handler? = null
 
-    var clientList: MutableList<Client> = mutableListOf()
-
-    private var isLocationRunning = false
-    private var isGnssRunning = false
+    val clientList = mutableListOf<Client>()
+    private var uiMonitoring = false
     private var isForeground = false
-    private var isChangingConfiguration = false
 
+    private val mutableState = MutableStateFlow(AvGpsState())
+    val state: StateFlow<AvGpsState> = mutableState.asStateFlow()
+
+    private var deviceName = "avGPS@Android"
     var lastLocation: LocationData? = null
-    var timestamp: Long = 0
-
-    private var discoveryThread = makeDiscoveryThread()
-
-    private val onLocationUpdate = LocationListener { location ->
-        val data = LocationData(
-            location.time,
-            location.longitude,
-            location.latitude,
-            location.altitude,
-            location.speed,
-            location.bearing,
-            location.accuracy,
-            location.verticalAccuracyMeters
-        )
-        lastLocation = data
-
-        if (shouldRunDelivery()) {
-            val clients = clientList.map { client ->
-                InetSocketAddress(
-                    client.source.address,
-                    client.source.port
-                )
-            }.toTypedArray()
-            serviceHandler?.post {
-                val ownshipReport = generateOwnship(data)
-                val ownshipAltitudeReport = generateOwnshipAltitude(data)
-                for (client in clients) {
-                    val socket = DatagramSocket(null)
-                    socket.connect(client)
-                    socket.send(DatagramPacket(ownshipReport, ownshipReport.size, client))
-                    socket.send(
-                        DatagramPacket(
-                            ownshipAltitudeReport,
-                            ownshipAltitudeReport.size,
-                            client
-                        )
-                    )
-                    socket.close()
-                }
-            }
-
-            notificationManager?.notify(NOTIFICATION_ID, produceNotification())
-        }
-    }
-
-    private val onGnssUpdate = object : GnssStatus.Callback() {
-        override fun onSatelliteStatusChanged(status: GnssStatus) {
-            super.onSatelliteStatusChanged(status)
-
-            val numSatellite = status.satelliteCount
-            val satellites = (0 until numSatellite).map { i ->
-                SatelliteData(
-                    typeToString(status.getConstellationType(i)),
-                    status.getSvid(i),
-                    status.getAzimuthDegrees(i),
-                    status.getElevationDegrees(i),
-                    status.getCn0DbHz(i),
-                    status.usedInFix(i)
-                )
-            }.toList()
-
-            if (shouldRunDelivery()) {
-                val clients = clientList.map { client ->
-                    InetSocketAddress(
-                        client.source.address,
-                        client.source.port
-                    )
-                }.toTypedArray()
-                serviceHandler?.post {
-                    val heartbeatReport =
-                        generateHeartbeat(satellites.any { satellite -> satellite.used }, timestamp)
-                    for (client in clients) {
-                        val socket = DatagramSocket(null)
-                        socket.connect(client)
-                        socket.send(DatagramPacket(heartbeatReport, heartbeatReport.size, client))
-                        socket.close()
-                    }
-                }
-            }
-        }
-
-        fun typeToString(type: Int): String {
-            return when (type) {
-                GnssStatus.CONSTELLATION_BEIDOU -> "Beidou"
-                GnssStatus.CONSTELLATION_GALILEO -> "Galileo"
-                GnssStatus.CONSTELLATION_GPS -> "GPS"
-                GnssStatus.CONSTELLATION_GLONASS -> "GLONASS"
-                GnssStatus.CONSTELLATION_IRNSS -> "IRNSS"
-                GnssStatus.CONSTELLATION_QZSS -> "Michibiki"
-                GnssStatus.CONSTELLATION_SBAS -> "SBAS"
-                else -> "Unknown"
-            }
-        }
-    }
-
-    private val onNmeaMessageListener =
-        OnNmeaMessageListener { _, ts -> timestamp = ts }
+        private set
+    private var latestNmeaTimestamp: Long = 0
 
     override fun onCreate() {
         super.onCreate()
-
-        val handlerThread = HandlerThread(TAG)
-        handlerThread.start()
-        serviceHandler = Handler(handlerThread.looper)
-
         notificationManager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
-        val notificationChannel = NotificationChannel(
-            NOTIFICATION_CHANNEL_ID,
-            NOTIFICATION_CHANNEL_NAME,
-            NotificationManager.IMPORTANCE_DEFAULT
-        )
-        notificationChannel.description = NOTIFICATION_CHANNEL_DESC
-        notificationManager?.createNotificationChannel(notificationChannel)
-
-        locationManager = getSystemService(Context.LOCATION_SERVICE) as LocationManager?
-
-        val systemDeviceName = Settings.Global.getString(contentResolver, "bluetooth_name")
-            ?: Settings.Global.getString(contentResolver, Settings.Global.DEVICE_NAME)
-        if (systemDeviceName != null) {
-            deviceName = truncateString(systemDeviceName, 16)
-        }
-
         createNotificationChannel()
+
+        resolveDeviceName()
+
+        gnssManager = GnssManager(
+            context = this,
+            onLocationChanged = ::handleLocationUpdate,
+            onSatellitesChanged = ::handleSatellitesUpdate,
+            onNmeaTimestamp = { timestamp -> latestNmeaTimestamp = timestamp },
+        )
+
+        discoveryServer = EfbDiscoveryServer { host, message ->
+            val source = InetSocketAddress(host, message.gdl90.port)
+            handleEfbDiscovered(source, message.app)
+        }
+    }
+
+    override fun onDestroy() {
+        discoveryServer.stop()
+        gnssManager.stopAll()
+        if (isForeground) stopForeground(STOP_FOREGROUND_REMOVE)
+        serviceScope.cancel()
+        super.onDestroy()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -198,110 +95,139 @@ class LocationService : Service() {
             for (i in clientList.indices) {
                 clientList[i] = clientList[i].copy(isEnabled = false)
             }
+            publishClients()
             updateRunningStatus()
         }
         return START_STICKY
     }
 
-    override fun onConfigurationChanged(newConfig: Configuration) {
-        super.onConfigurationChanged(newConfig)
-        isChangingConfiguration = true
-    }
-
     override fun onBind(intent: Intent?): IBinder {
-        discoveryThread = makeDiscoveryThread()
-        discoveryThread.start()
-        isChangingConfiguration = false
+        discoveryServer.start()
         return binder
     }
 
     override fun onRebind(intent: Intent?) {
         super.onRebind(intent)
-        discoveryThread = makeDiscoveryThread()
-        discoveryThread.start()
-        isChangingConfiguration = false
+        discoveryServer.start()
     }
 
     override fun onUnbind(intent: Intent?): Boolean {
-        if (!isChangingConfiguration) {
-            discoveryThread.interrupt()
-        }
+        discoveryServer.stop()
         return true
     }
 
-    fun onEFBDiscovery(host: InetAddress, data: EFBDiscoveryMessage) {
-        val source = InetSocketAddress(host, data.gdl90.port)
-        val elem = clientList.find { client -> client.source == source }
-        val timestamp = Instant.now()
-        if (elem != null) {
-            val index = clientList.indexOf(elem)
-            clientList[index] = elem.copy(lastDiscover = timestamp)
-        } else {
-            clientList.add(Client(source, data.app, timestamp, false))
+    private fun handleLocationUpdate(location: LocationData) {
+        lastLocation = location
+        mutableState.update { it.copy(location = location) }
+
+        if (shouldDeliverToClients()) {
+            val targets = activeClientAddresses()
+            val ownshipReport = generateOwnship(location)
+            val ownshipAltitudeReport = generateOwnshipAltitude(location)
+            serviceScope.launch {
+                broadcastUdp(targets, ownshipReport, ownshipAltitudeReport)
+            }
+            notificationManager?.notify(NOTIFICATION_ID, produceNotification())
         }
     }
 
-    fun setEFBenable(source: InetSocketAddress, enabled: Boolean) {
-        val client = clientList.find { client -> client.source == source }
+    private fun handleSatellitesUpdate(satellites: List<SatelliteData>) {
+        mutableState.update { it.copy(satellites = satellites) }
+
+        if (shouldDeliverToClients()) {
+            val targets = activeClientAddresses()
+            val heartbeatReport = generateHeartbeat(satellites.any { it.used }, latestNmeaTimestamp)
+            serviceScope.launch {
+                broadcastUdp(targets, heartbeatReport)
+            }
+        }
+    }
+
+    private fun handleEfbDiscovered(source: InetSocketAddress, appName: String) {
+        val timestamp = Instant.now()
+        val existing = clientList.find { it.source == source }
+        if (existing != null) {
+            val index = clientList.indexOf(existing)
+            clientList[index] = existing.copy(lastDiscover = timestamp)
+        } else {
+            clientList.add(Client(source, appName, timestamp, false))
+        }
+        publishClients()
+    }
+
+    fun setUiMonitoring(enabled: Boolean) {
+        uiMonitoring = enabled
+        updateRunningStatus()
+    }
+
+    fun refreshMonitoring() = updateRunningStatus()
+
+    fun setEfbEnabled(source: InetSocketAddress, enabled: Boolean) {
+        val client = clientList.find { it.source == source }
         if (client != null) {
             if (!client.isEnabled && enabled) {
-                serviceHandler?.post {
-                    val idReport = generateID(deviceName)
-                    val socket = DatagramSocket(null)
-                    socket.connect(client.source)
-                    socket.send(DatagramPacket(idReport, idReport.size, client.source))
+                serviceScope.launch {
+                    sendUdp(client.source, generateID(deviceName))
                 }
             }
             val index = clientList.indexOf(client)
             clientList[index] = client.copy(isEnabled = enabled)
+            publishClients()
             updateRunningStatus()
         }
     }
 
     fun clearEFB() {
         clientList.clear()
+        publishClients()
         updateRunningStatus()
     }
 
-    private fun shouldRunGnss(): Boolean {
-        return shouldRunDelivery()
-    }
+    private fun activeClientAddresses(): List<InetSocketAddress> =
+        clientList.filter { it.isEnabled }.map { it.source }
 
-    private fun shouldRunDelivery(): Boolean {
-        return clientList.any { client -> client.isEnabled }
-    }
+    private fun shouldDeliverToClients(): Boolean =
+        clientList.any { it.isEnabled }
 
-    private fun shouldRunLocation(): Boolean {
-        return shouldRunGnss() || shouldRunDelivery()
+    private fun publishClients() {
+        mutableState.update { it.copy(clients = clientList.toList()) }
     }
 
     private fun updateRunningStatus() {
-        val shouldRunLocation = shouldRunLocation()
-        val shouldRunGnss = shouldRunGnss()
-        val shouldRunDelivery = shouldRunDelivery()
+        val hasPermission = hasLocationPermission()
+        val deliver = shouldDeliverToClients()
+        val needLocation = (uiMonitoring || deliver) && hasPermission
+        val needGnss = (uiMonitoring || deliver) && hasPermission
 
-        if (shouldRunLocation && !isLocationRunning) {
-            listenLocationUpdates()
-            isLocationRunning = shouldRunLocation
-        } else if (!shouldRunLocation && isLocationRunning) {
-            stopLocationUpdates()
-            isLocationRunning = shouldRunLocation
-        }
+        if (needLocation) gnssManager.startLocationUpdates() else gnssManager.stopLocationUpdates()
+        if (needGnss) gnssManager.startSatelliteUpdates() else gnssManager.stopSatelliteUpdates()
 
-        if (shouldRunGnss && !isGnssRunning) {
-            listenGnssUpdates()
-            isGnssRunning = shouldRunGnss
-        } else if (!shouldRunGnss && isGnssRunning) {
-            stopGnssUpdates()
-            isGnssRunning = shouldRunGnss
-        }
-
-        if (shouldRunDelivery && !isForeground) {
+        if (deliver && !isForeground && hasPermission) {
             startForeground(NOTIFICATION_ID, produceNotification())
             isForeground = true
-        } else if (!shouldRunDelivery && isForeground) {
+        } else if (!deliver && isForeground) {
             stopForeground(STOP_FOREGROUND_REMOVE)
             isForeground = false
+        }
+    }
+
+    private fun broadcastUdp(targets: List<InetSocketAddress>, vararg payloads: ByteArray) {
+        if (targets.isEmpty() || payloads.isEmpty()) return
+        for (target in targets) {
+            sendUdp(target, *payloads)
+        }
+    }
+
+    private fun sendUdp(target: InetSocketAddress, vararg payloads: ByteArray) {
+        try {
+            DatagramSocket().use { socket ->
+                socket.connect(target)
+                for (payload in payloads) {
+                    socket.send(DatagramPacket(payload, payload.size, target))
+                }
+            }
+        } catch (error: IOException) {
+            Log.w(TAG, "Failed to transmit UDP packet to $target", error)
         }
     }
 
@@ -309,7 +235,7 @@ class LocationService : Service() {
         val channel = NotificationChannel(
             NOTIFICATION_CHANNEL_ID,
             NOTIFICATION_CHANNEL_NAME,
-            NotificationManager.IMPORTANCE_HIGH
+            NotificationManager.IMPORTANCE_HIGH,
         ).apply {
             description = NOTIFICATION_CHANNEL_DESC
         }
@@ -317,159 +243,57 @@ class LocationService : Service() {
     }
 
     private fun produceNotification(): Notification {
-        val locationString = if (lastLocation == null) {
-            "Unknown Location"
+        val location = lastLocation
+        val locationString = if (location != null) {
+            CoordinateFormatter.formatDms(location.latitude, location.longitude)
         } else {
-            val latBuilder = coordToString(lastLocation!!.latitude)
-            latBuilder.append(
-                if (lastLocation!!.latitude < 0) {
-                    " S"
-                } else {
-                    " N"
-                }
-            )
-            val lonBuilder = coordToString(lastLocation!!.longitude)
-            lonBuilder.append(
-                if (lastLocation!!.longitude < 0) {
-                    " W"
-                } else {
-                    " E"
-                }
-            )
-            "($latBuilder, $lonBuilder)"
+            "Unknown Location"
         }
-        val numActiveClient = clientList.count { client -> client.isEnabled }
-        val titleString = "Serving $numActiveClient client${
-            if (numActiveClient > 1) {
-                "s"
-            } else {
-                ""
-            }
-        }"
 
-        val intent = Intent(this, LocationService::class.java)
-        intent.putExtra("avgps.disable_all", true)
+        val numActiveClients = clientList.count { it.isEnabled }
+        val titleString = "Serving $numActiveClients client${if (numActiveClients == 1) "" else "s"}"
+
+        val disableAllIntent = Intent(this, LocationService::class.java).apply {
+            putExtra("avgps.disable_all", true)
+        }
 
         val launchIntent = PendingIntent.getActivity(
             this,
             0,
             Intent(this, MainActivity::class.java),
-            PendingIntent.FLAG_IMMUTABLE
+            PendingIntent.FLAG_IMMUTABLE,
         )
-        val pendingIntent =
-            PendingIntent.getService(
-                this,
-                0,
-                intent,
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-            )
+
+        val stopPendingIntent = PendingIntent.getService(
+            this,
+            0,
+            disableAllIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
 
         return NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_notification)
-            .addAction(0, "Stop", pendingIntent)
-            .setContentText(locationString).setContentTitle(titleString).setOngoing(true)
-            .setTicker(titleString).setChannelId(NOTIFICATION_CHANNEL_ID)
-            .setContentIntent(launchIntent).setOnlyAlertOnce(true)
-            .setWhen(System.currentTimeMillis()).build()
+            .addAction(0, "Stop", stopPendingIntent)
+            .setContentText(locationString)
+            .setContentTitle(titleString)
+            .setOngoing(true)
+            .setTicker(titleString)
+            .setChannelId(NOTIFICATION_CHANNEL_ID)
+            .setContentIntent(launchIntent)
+            .setOnlyAlertOnce(true)
+            .setWhen(System.currentTimeMillis())
+            .build()
     }
 
-    @SuppressLint("MissingPermission")
-    private fun listenLocationUpdates() {
-        locationManager?.requestLocationUpdates(
-            LocationManager.GPS_PROVIDER,
-            1000,
-            0.0f,
-            onLocationUpdate,
-            Looper.getMainLooper()
-        )
-    }
-
-    private fun stopLocationUpdates() {
-        locationManager?.removeUpdates(onLocationUpdate)
-    }
-
-    @SuppressLint("MissingPermission")
-    private fun listenGnssUpdates() {
-        locationManager?.registerGnssStatusCallback(onGnssUpdate, Handler(Looper.getMainLooper()))
-        locationManager?.addNmeaListener(onNmeaMessageListener, Handler(Looper.getMainLooper()))
-    }
-
-    private fun stopGnssUpdates() {
-        locationManager?.unregisterGnssStatusCallback(onGnssUpdate)
-        locationManager?.removeNmeaListener(onNmeaMessageListener)
-    }
-
-    private fun truncateString(s: String, limit: Int): ByteArray {
-        val encoder = StandardCharsets.UTF_8.newEncoder()
-        val byteBuffer = ByteBuffer.allocate(limit)
-        val charBuffer = CharBuffer.wrap(s)
-        val result = encoder.encode(charBuffer, byteBuffer, true)
-        return if (result.isOverflow) {
-            var availableByte = byteBuffer.remaining()
-            var position = charBuffer.position() - 1
-            while (availableByte < 3) {
-                availableByte += s.substring(position, position + 1).toByteArray().size
-                position--
-            }
-            charBuffer.position(position + 1)
-            charBuffer.put('⋯')
-            charBuffer.flip().toString().toByteArray()
-        } else {
-            byteBuffer.array()
+    private fun resolveDeviceName() {
+        val systemName = Settings.Global.getString(contentResolver, "bluetooth_name")
+            ?: Settings.Global.getString(contentResolver, Settings.Global.DEVICE_NAME)
+        if (systemName != null) {
+            deviceName = systemName
         }
     }
 
-    private fun coordToString(coordinate: Double): StringBuilder {
-        val builder = StringBuilder()
-        val rawDeg = Location.convert(coordinate, Location.FORMAT_SECONDS)
-        val coordComponents = rawDeg.split(':')
-
-        builder.append(coordComponents[0])
-        builder.append('°')
-        builder.append(coordComponents[1])
-        builder.append('′')
-        builder.append(coordComponents[2])
-        builder.append('″')
-
-        return builder
-    }
-
-    private fun makeDiscoveryThread(): Thread {
-        return object : Thread() {
-            var socket: DatagramSocket? = null
-
-            override fun run() {
-                val rawPacket = ByteArray(1500)
-                val handler = Handler(Looper.getMainLooper())
-                socket = DatagramSocket(null)
-                socket!!.reuseAddress = true
-                socket!!.bind(InetSocketAddress(63093))
-
-                while (true) {
-                    try {
-                        val packet = DatagramPacket(rawPacket, rawPacket.size)
-                        socket!!.receive(packet)
-                        val message = String(rawPacket, 0, packet.length)
-                        val data: EFBDiscoveryMessage = Json.decodeFromString(message)
-
-                        handler.post {
-                            this@LocationService.onEFBDiscovery(packet.address, data)
-                        }
-                    } catch (e: SocketException) {
-                        break
-                    } catch (e: SerializationException) {
-                        // Do nothing
-                    } catch (e: Exception) {
-                        Log.e(TAG, "UDP listener: $e")
-                        break
-                    }
-                }
-            }
-
-            override fun interrupt() {
-                super.interrupt()
-                socket?.close()
-            }
-        }
-    }
+    private fun hasLocationPermission(): Boolean =
+        ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) ==
+                PackageManager.PERMISSION_GRANTED
 }
