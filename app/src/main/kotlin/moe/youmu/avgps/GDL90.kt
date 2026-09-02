@@ -1,45 +1,66 @@
 package moe.youmu.avgps
 
 import java.nio.ByteBuffer
-import kotlin.experimental.xor
 import kotlin.math.roundToInt
 
-fun makeGDL90(payload: ByteArray): ByteArray {
-    // 2 bytes for begin/end flag
-    // 2 * 2 bytes for Frame Check Sequence, including possible bit stuffing
-    // 2 * payload.size for possible bit stuffing
-    val crc = crc16(payload)
-    val packet = ByteBuffer.allocate(2 + 4 + 2 * payload.size)
-    packet.put(0x7E)
-    for (byte in payload) {
-        when (byte) {
-            0x7D.toByte(), 0x7E.toByte() -> {
-                packet.put(0x7D)
-                packet.put(byte xor 0x20)
-            }
-            else -> {
-                packet.put(byte)
-            }
-        }
-    }
-    for (byte in arrayOf(crc.toByte(), (crc shr 8).toByte())) {
-        when (byte) {
-            0x7D.toByte(), 0x7E.toByte() -> {
-                packet.put(0x7D)
-                packet.put(byte xor 0x20)
-            }
-            else -> {
-                packet.put(byte)
-            }
-        }
-    }
-    packet.put(0x7E)
+// ============================================================================
+// GDL90 Protocol Framing & CRC
+// ============================================================================
 
-    packet.flip()
-    val result = ByteArray(packet.limit())
-    packet.get(result)
-    return result
+object Gdl90Framer {
+    private const val FLAG_BYTE: Byte = 0x7E
+    private const val ESCAPE_BYTE: Byte = 0x7D
+    private const val ESCAPE_XOR: Byte = 0x20
+
+    private val crcTable: IntArray = IntArray(256) { i ->
+        (0 until 8).fold(i shl 8) { crc, _ ->
+            (crc shl 1) xor (if (crc and 0x8000 == 0) 0 else 0x1021)
+        } and 0xFFFF
+    }
+
+    /**
+     * Computes the 16-bit CRC-CCITT required by the GDL90 specification.
+     */
+    fun computeCrc(input: ByteArray): Int {
+        return input.fold(0) { remainder, byte ->
+            (crcTable[(remainder shr 8) and 0xFF] xor (remainder shl 8) xor byte.toUByte().toInt()) and 0xFFFF
+        }
+    }
+
+    /**
+     * Frames a raw payload into a GDL90 packet:
+     * Flag (0x7E) + Escaped Payload + Escaped CRC16 (LSB first) + Flag (0x7E).
+     */
+    fun frame(payload: ByteArray): ByteArray {
+        val crc = computeCrc(payload)
+        val buffer = ByteBuffer.allocate(2 + 4 + 2 * payload.size)
+
+        buffer.put(FLAG_BYTE)
+        putEscaped(buffer, payload)
+        putEscaped(buffer, byteArrayOf(crc.toByte(), (crc shr 8).toByte()))
+        buffer.put(FLAG_BYTE)
+
+        buffer.flip()
+        val result = ByteArray(buffer.remaining())
+        buffer.get(result)
+        return result
+    }
+
+    private fun putEscaped(buffer: ByteBuffer, data: ByteArray) {
+        for (byte in data) {
+            when (byte) {
+                FLAG_BYTE, ESCAPE_BYTE -> {
+                    buffer.put(ESCAPE_BYTE)
+                    buffer.put((byte.toInt() xor ESCAPE_XOR.toInt()).toByte())
+                }
+
+                else -> buffer.put(byte)
+            }
+        }
+    }
 }
+
+fun makeGDL90(payload: ByteArray): ByteArray = Gdl90Framer.frame(payload)
 
 fun generateOwnship(location: LocationData): ByteArray {
     val report = ByteArray(28)
@@ -178,42 +199,15 @@ fun generateOwnshipAltitude(location: LocationData): ByteArray {
     return makeGDL90(report)
 }
 
-val crc16Table = (0 until 256).map {
-    (0 until 8).fold(it shl 8) { crc, _ ->
-        (crc shl 1) xor (if (crc and 0x8000 == 0) {
-            0
-        } else {
-            0x1021
-        })
-    } and 0xFFFF
-}.toTypedArray()
+fun ftToM(x: Double): Double = x * 0.3048
 
-fun crc16(input: ByteArray): Int {
-    return input.fold(0) { remainder, byte ->
-        (crc16Table[(remainder shr 8)] xor (remainder shl 8) xor byte.toUByte().toInt()) and 0xFFFF
+private fun mToFt(x: Double): Double = x / 0.3048
 
-    }
-}
+fun ktToMps(x: Double): Double = x * 0.5144444444
 
-fun ftToM(x: Double): Double {
-    return x * 0.3048
-}
+private fun mpsToKt(x: Double): Double = x / 0.5144444444
 
-private fun mToFt(x: Double): Double {
-    return x / 0.3048
-}
-
-fun ktToMps(x: Double): Double {
-    return x * 0.5144444444
-}
-
-private fun mpsToKt(x: Double): Double {
-    return x / 0.5144444444
-}
-
-private fun mToNm(x: Double): Double {
-    return x / 1852
-}
+private fun mToNm(x: Double): Double = x / 1852.0
 
 private fun mToHfom(x: Double): Byte {
     return if (x < 3) {
