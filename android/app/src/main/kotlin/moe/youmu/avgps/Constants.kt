@@ -1,6 +1,0 @@
-package moe.youmu.avgps
-
-val GRANTED = 0
-val LOCATION_UNAVAILABLE = 1
-val LOCATION_DENIED = 2
-val LOCATION_BACKGROUND_DENIED = 3
