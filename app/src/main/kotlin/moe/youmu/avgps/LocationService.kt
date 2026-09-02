@@ -195,7 +195,9 @@ class LocationService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val isStopping = intent?.getBooleanExtra("avgps.disable_all", false) ?: false
         if (isStopping) {
-            clientList.forEach { client -> client.isEnabled = false }
+            for (i in clientList.indices) {
+                clientList[i] = clientList[i].copy(isEnabled = false)
+            }
             updateRunningStatus()
         }
         return START_STICKY
@@ -230,9 +232,10 @@ class LocationService : Service() {
     fun onEFBDiscovery(host: InetAddress, data: EFBDiscoveryMessage) {
         val source = InetSocketAddress(host, data.gdl90.port)
         val elem = clientList.find { client -> client.source == source }
-        val timestamp = Date.from(Instant.now())
+        val timestamp = Instant.now()
         if (elem != null) {
-            elem.lastDiscover = timestamp
+            val index = clientList.indexOf(elem)
+            clientList[index] = elem.copy(lastDiscover = timestamp)
         } else {
             clientList.add(Client(source, data.app, timestamp, false))
         }
@@ -249,7 +252,8 @@ class LocationService : Service() {
                     socket.send(DatagramPacket(idReport, idReport.size, client.source))
                 }
             }
-            client.isEnabled = enabled
+            val index = clientList.indexOf(client)
+            clientList[index] = client.copy(isEnabled = enabled)
             updateRunningStatus()
         }
     }
