@@ -7,9 +7,12 @@ Transferring GPS and barometric sensor telemetry to EFBs over GDL-90.
 Download apk at [Releases](https://github.com/johnmave126/avgps/releases).
 
 ## Features
-* Basic GPS reading and satellites information.
-* Serve as GPS receiver for EFB on other device(s).
-* Auto detection of ForeFlight.
+* GPS reading and satellite constellation information.
+* Barometric pressure altitude reporting with altimeter calibration.
+* Aircraft callsign configuration and broadcasting.
+* Serve as GDL-90 data source for EFBs.
+* Auto-detection of ForeFlight.
+* Manually add and edit target EFB IP and port.
 
 ## Compatibility
 * ForeFlight (tested)
@@ -19,8 +22,19 @@ Download apk at [Releases](https://github.com/johnmave126/avgps/releases).
 ![Satellite Page](/images/screenshot_satellite.png)
 
 ## Roadmap
-- [ ] Get a proper logo.
-- [ ] Manually add EFBs.
+- [x] Get a proper logo.
+- [x] Manually add EFBs.
+- [x] Barometer support.
+- [x] Clean up code.
 - [ ] Test other EFBs (help wanted).
-- [ ] Clean up code.
 - [ ] Get it on Google Play.
+
+## Release Notes
+
+### v2.0
+* Update toolchain.
+* Rebuilt UI with Jetpack Compose.
+* Renamed app to Ownship with new app and notification icons.
+* Added barometer monitoring and pressure altitude broadcasting.
+* Added callsign setting and broadcasting.
+* Added manual EFB IP and port target configuration.
