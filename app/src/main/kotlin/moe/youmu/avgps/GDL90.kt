@@ -143,11 +143,25 @@ sealed interface Gdl90Message {
 }
 
 /**
+ * Encodes pressure altitude referenced to 29.92 inHg using 25-foot resolution,
+ * offset by +1,000 feet. Returns 0xFFF if altitude is invalid, null, or out of range.
+ * Minimum valid altitude is -1,000 ft (0x000), maximum is +101,350 ft (0xFFE).
+ */
+fun encodePressureAltitude(altitudeFeet: Double?): Int {
+    if (altitudeFeet == null || altitudeFeet.isNaN() || altitudeFeet < -1000.0 || altitudeFeet > 101350.0) {
+        return 0xFFF
+    }
+    val encoded = ((altitudeFeet + 1000.0) / 25.0).roundToInt()
+    return encoded.coerceIn(0x000, 0xFFE)
+}
+
+/**
  * Ownship Report (Message ID 10).
  */
 data class Gdl90OwnshipReport(
     val location: LocationData,
     val callSign: String = "        ",
+    val pressureAltitudeFeet: Double? = null,
 ) : Gdl90Message {
     override val messageId: Byte = 10
 
@@ -174,10 +188,9 @@ data class Gdl90OwnshipReport(
 
         // Altitude: 1 byte + high 4 bits
         // Miscellaneous Indicators: 1001, airborne, updated report, true track angle
-        // TODO: we don't have pressure altitude, so leave it 0xFFF. We could add barometric data
-        //  for phones that support it.
-        writer.writeByte(0xFF)
-        writer.writeByte(0xF9)
+        val altCode = encodePressureAltitude(pressureAltitudeFeet)
+        writer.writeByte((altCode shr 4) and 0xFF)
+        writer.writeByte(((altCode and 0x0F) shl 4) or 0x09)
 
         // Navigation Integrity Category: high 4 bits 0 = Unknown
         // Navigation Accuracy Category: low 4 bits
@@ -321,8 +334,8 @@ data class ForeFlightIdMessage(
 // Public Utility & Compatibility Functions
 // ============================================================================
 
-fun generateOwnship(location: LocationData): ByteArray =
-    Gdl90OwnshipReport(location).toFramedPacket()
+fun generateOwnship(location: LocationData, pressureAltitudeFeet: Double? = null): ByteArray =
+    Gdl90OwnshipReport(location, pressureAltitudeFeet = pressureAltitudeFeet).toFramedPacket()
 
 fun generateHeartbeat(isGPSValid: Boolean, timestamp: Long): ByteArray =
     Gdl90HeartbeatReport(isGPSValid, timestamp).toFramedPacket()

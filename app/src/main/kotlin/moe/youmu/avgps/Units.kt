@@ -11,6 +11,7 @@ object AviationConstants {
     const val METERS_PER_NM = 1852.0
     const val METERS_PER_SM = 1609.344
     const val MPS_PER_KNOT = 1852.0 / 3600.0
+    const val HPA_PER_INHG = 33.863886666667
 }
 
 // ============================================================================
@@ -34,6 +35,11 @@ enum class DistanceUnit(val label: String) {
     FEET("Feet"),
     NAUTICAL_MILES("Nautical miles"),
     STATUTE_MILES("Statute miles"),
+}
+
+enum class PressureUnit(val label: String) {
+    INHG("inHg"),
+    HPA("hPa"),
 }
 
 // ============================================================================
@@ -109,5 +115,21 @@ value class Distance(val meters: Double) {
     companion object {
         fun ofMeters(meters: Double): Distance = Distance(meters)
         fun ofNauticalMiles(nm: Double): Distance = Distance(nm * AviationConstants.METERS_PER_NM)
+    }
+}
+
+@JvmInline
+value class Pressure(val hectopascals: Double) {
+    fun toHpa(): Double = hectopascals
+    fun toInHg(): Double = hectopascals / AviationConstants.HPA_PER_INHG
+
+    fun format(unit: PressureUnit): String = when (unit) {
+        PressureUnit.INHG -> "%.2f inHg".format(Locale.US, toInHg())
+        PressureUnit.HPA -> "%.0f hPa".format(Locale.US, toHpa())
+    }
+
+    companion object {
+        fun ofHpa(hpa: Double): Pressure = Pressure(hpa)
+        fun ofInHg(inHg: Double): Pressure = Pressure(inHg * AviationConstants.HPA_PER_INHG)
     }
 }

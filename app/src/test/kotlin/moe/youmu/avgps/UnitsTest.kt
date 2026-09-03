@@ -29,4 +29,19 @@ class UnitsTest {
         val dist = Distance.ofNauticalMiles(1.0)
         assertEquals(1852.0, dist.toMeters(), 0.001)
     }
+
+    @Test
+    fun formatsPressureUnits() {
+        assertEquals("29.92 inHg", Pressure.ofInHg(29.92).format(PressureUnit.INHG))
+        assertEquals("1013 hPa", Pressure.ofHpa(1013.25).format(PressureUnit.HPA))
+    }
+
+    @Test
+    fun pressureValueClassConversionsAreExact() {
+        val pressureFromInHg = Pressure.ofInHg(29.92)
+        assertEquals(1013.207, pressureFromInHg.toHpa(), 0.001)
+
+        val pressureFromHpa = Pressure.ofHpa(1013.25)
+        assertEquals(29.921, pressureFromHpa.toInHg(), 0.001)
+    }
 }

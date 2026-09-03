@@ -83,4 +83,42 @@ class GDL90Test {
         assertEquals(0x7E, packet.first().toInt() and 0xFF)
         assertEquals(0x7E, packet.last().toInt() and 0xFF)
     }
+
+    @Test
+    fun encodesPressureAltitudeCorrectly() {
+        // Minimum valid altitude: -1,000 ft -> 0x000
+        assertEquals(0x000, encodePressureAltitude(-1000.0))
+        // 0 ft -> 0x028
+        assertEquals(0x028, encodePressureAltitude(0.0))
+        // +1000 ft -> 0x050
+        assertEquals(0x050, encodePressureAltitude(1000.0))
+        // Maximum valid altitude: +101,350 ft -> 0xFFE
+        assertEquals(0xFFE, encodePressureAltitude(101350.0))
+
+        // Invalid or unavailable values -> 0xFFF
+        assertEquals(0xFFF, encodePressureAltitude(null))
+        assertEquals(0xFFF, encodePressureAltitude(Double.NaN))
+        assertEquals(0xFFF, encodePressureAltitude(-1001.0))
+        assertEquals(0xFFF, encodePressureAltitude(101351.0))
+    }
+
+    @Test
+    fun ownshipPacketEncodesPressureAltitudeInPayload() {
+        val location = LocationData(0, -122.0, 47.0, 1000.0, 50f, 90f, 5f, 8f)
+
+        // Without pressure altitude: default 0xFFF (bytes 0xFF, 0xF9)
+        val defaultPayload = Gdl90OwnshipReport(location).buildPayload()
+        assertEquals(0xFF.toByte(), defaultPayload[11])
+        assertEquals(0xF9.toByte(), defaultPayload[12])
+
+        // With 0 ft (0x028): high 8 bits = 0x02, low 4 bits = 0x8 | misc 0x9 -> 0x89
+        val zeroFtPayload = Gdl90OwnshipReport(location, pressureAltitudeFeet = 0.0).buildPayload()
+        assertEquals(0x02.toByte(), zeroFtPayload[11])
+        assertEquals(0x89.toByte(), zeroFtPayload[12])
+
+        // With 1000 ft (0x050): high 8 bits = 0x05, low 4 bits = 0x0 | misc 0x9 -> 0x09
+        val thousandFtPayload = Gdl90OwnshipReport(location, pressureAltitudeFeet = 1000.0).buildPayload()
+        assertEquals(0x05.toByte(), thousandFtPayload[11])
+        assertEquals(0x09.toByte(), thousandFtPayload[12])
+    }
 }
