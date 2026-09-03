@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Concentric radar range rings -->
+    <path
+        android:pathData="M 54,18 A 36,36 0 1,0 54,90 A 36,36 0 1,0 54,18 Z"
+        android:strokeColor="#4592A2"
+        android:strokeWidth="1.5"
+        android:strokeAlpha="0.35" />
+    <path
+        android:pathData="M 54,30 A 24,24 0 1,0 54,78 A 24,24 0 1,0 54,30 Z"
+        android:strokeColor="#56ABBC"
+        android:strokeWidth="1.2"
+        android:strokeAlpha="0.45" />
+
+    <!-- Cardinal navigation ticks -->
+    <path
+        android:pathData="M 54,26 L 54,32 M 54,76 L 54,82 M 26,54 L 32,54 M 76,54 L 82,54"
+        android:strokeColor="#7CD0DD"
+        android:strokeWidth="1.5"
+        android:strokeLineCap="round"
+        android:strokeAlpha="0.6" />
+
+    <!-- Clean, minimalist airplane silhouette -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M 54,28 C 56.2,31 57,40 57.2,48 L 81,62 L 81,65 L 57.2,60 L 56.8,72 L 65,77 L 65,79 L 55.8,78 L 54,81 L 52.2,78 L 43,79 L 43,77 L 51.2,72 L 50.8,60 L 27,65 L 27,62 L 50.8,48 C 51,40 51.8,31 54,28 Z" />
+
+    <!-- GPS beacon dot at center -->
+    <path
+        android:fillColor="#38D9A9"
+        android:pathData="M 54,53 A 2.2,2.2 0 1,0 54,57.4 A 2.2,2.2 0 1,0 54,53 Z" />
+</vector>
