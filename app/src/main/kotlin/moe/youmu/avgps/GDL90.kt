@@ -334,8 +334,16 @@ data class ForeFlightIdMessage(
 // Public Utility & Compatibility Functions
 // ============================================================================
 
-fun generateOwnship(location: LocationData, pressureAltitudeFeet: Double? = null): ByteArray =
-    Gdl90OwnshipReport(location, pressureAltitudeFeet = pressureAltitudeFeet).toFramedPacket()
+fun generateOwnship(
+    location: LocationData,
+    pressureAltitudeFeet: Double? = null,
+    callSign: String = "        ",
+): ByteArray =
+    Gdl90OwnshipReport(
+        location = location,
+        pressureAltitudeFeet = pressureAltitudeFeet,
+        callSign = callSign.ifBlank { "        " },
+    ).toFramedPacket()
 
 fun generateHeartbeat(isGPSValid: Boolean, timestamp: Long): ByteArray =
     Gdl90HeartbeatReport(isGPSValid, timestamp).toFramedPacket()

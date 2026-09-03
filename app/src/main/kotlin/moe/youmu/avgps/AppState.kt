@@ -38,6 +38,7 @@ data class AvGpsState(
     val pressureHpa: Float? = null,
     val reportPressureAltitude: Boolean = false,
     val altimeterSettingHpa: Double = 1013.25,
+    val callsign: String = "",
 )
 
 data class UnitSettings(

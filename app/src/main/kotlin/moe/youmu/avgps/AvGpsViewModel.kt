@@ -87,6 +87,13 @@ class AvGpsViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch { preferences.setAltimeterSettingHpa(hpa) }
     }
 
+    fun setCallsign(callsign: String) {
+        viewModelScope.launch {
+            val sanitized = callsign.uppercase().filter { it.isLetterOrDigit() || it == '-' }.take(8)
+            preferences.setCallsign(sanitized)
+        }
+    }
+
     override fun onCleared() {
         service.value?.setUiMonitoring(false)
         if (bound) getApplication<Application>().unbindService(connection)

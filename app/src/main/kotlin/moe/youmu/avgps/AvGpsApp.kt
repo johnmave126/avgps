@@ -52,6 +52,7 @@ fun AvGpsApp(
     onSetPressureUnit: (PressureUnit) -> Unit = {},
     onSetReportPressureAltitude: (Boolean) -> Unit = {},
     onSetAltimeterSetting: (Double) -> Unit = {},
+    onSetCallsign: (String) -> Unit = {},
 ) {
     var selectedTab by remember { mutableIntStateOf(0) }
     var currentClockTime by remember { mutableLongStateOf(System.currentTimeMillis()) }
@@ -115,6 +116,7 @@ fun AvGpsApp(
                         onClearClients = onClearClients,
                         onSetClientEnabled = onSetClientEnabled,
                         onSetAltimeterSetting = onSetAltimeterSetting,
+                        onSetCallsign = onSetCallsign,
                     )
 
                     1 -> SatellitesScreen(satellites = appState.satellites)

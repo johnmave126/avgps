@@ -28,6 +28,7 @@ import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -50,6 +51,7 @@ import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
@@ -66,10 +68,12 @@ fun LocationScreen(
     onSetClientEnabled: (Client, Boolean) -> Unit,
     modifier: Modifier = Modifier,
     onSetAltimeterSetting: (Double) -> Unit = {},
+    onSetCallsign: (String) -> Unit = {},
 ) {
     val location = state.location
     val hasLocation = location != null
     var showAltimeterDialog by remember { mutableStateOf(false) }
+    var showCallsignDialog by remember { mutableStateOf(false) }
 
     val lastFixString = if (hasLocation) {
         val elapsedSec = ((nowEpochMs - location!!.timestamp) / 1000).coerceAtLeast(0)
@@ -185,7 +189,7 @@ fun LocationScreen(
                             }
                         }
 
-                        // Col 3: Bearing & Last Fix
+                        // Col 3: Bearing, Last Fix, Callsign
                         Column(
                             modifier = Modifier.weight(1f),
                             verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -197,6 +201,11 @@ fun LocationScreen(
                             MetricBox(
                                 label = "last fix",
                                 value = lastFixString,
+                            )
+                            MetricBox(
+                                label = "callsign",
+                                value = if (state.callsign.isNotBlank()) state.callsign else "None",
+                                onClick = { showCallsignDialog = true },
                             )
                         }
                     }
@@ -303,6 +312,17 @@ fun LocationScreen(
             onConfirm = { newHpa ->
                 onSetAltimeterSetting(newHpa)
                 showAltimeterDialog = false
+            },
+        )
+    }
+
+    if (showCallsignDialog) {
+        CallsignDialog(
+            initialCallsign = state.callsign,
+            onDismiss = { showCallsignDialog = false },
+            onConfirm = { newCallsign ->
+                onSetCallsign(newCallsign)
+                showCallsignDialog = false
             },
         )
     }
@@ -642,4 +662,71 @@ private fun validateAndConfirm(
         }
         onConfirm(hpa)
     }
+}
+
+@Composable
+private fun CallsignDialog(
+    initialCallsign: String,
+    onDismiss: () -> Unit,
+    onConfirm: (String) -> Unit,
+) {
+    var text by remember { mutableStateOf(initialCallsign) }
+    val focusRequester = remember { FocusRequester() }
+
+    LaunchedEffect(Unit) {
+        delay(100)
+        focusRequester.requestFocus()
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Set Callsign") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    "Enter tail number or flight ID to transmit to connected EFBs (max 8 characters):",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                OutlinedTextField(
+                    value = text,
+                    onValueChange = { input ->
+                        text = input.uppercase().filter { it.isLetterOrDigit() || it == '-' }.take(8)
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .focusRequester(focusRequester),
+                    singleLine = true,
+                    placeholder = { Text("e.g. N12345") },
+                    keyboardOptions = KeyboardOptions(
+                        capitalization = KeyboardCapitalization.Characters,
+                        keyboardType = KeyboardType.Ascii,
+                        imeAction = ImeAction.Done,
+                    ),
+                    keyboardActions = KeyboardActions(
+                        onDone = {
+                            onConfirm(text.trim())
+                        }
+                    ),
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onConfirm(text.trim()) }) {
+                Text("Save")
+            }
+        },
+        dismissButton = {
+            Row {
+                if (initialCallsign.isNotBlank()) {
+                    TextButton(onClick = { onConfirm("") }) {
+                        Text("Clear")
+                    }
+                }
+                TextButton(onClick = onDismiss) {
+                    Text("Cancel")
+                }
+            }
+        },
+    )
 }

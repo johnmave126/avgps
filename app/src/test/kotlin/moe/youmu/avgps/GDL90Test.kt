@@ -121,4 +121,26 @@ class GDL90Test {
         assertEquals(0x05.toByte(), thousandFtPayload[11])
         assertEquals(0x09.toByte(), thousandFtPayload[12])
     }
+
+    @Test
+    fun ownshipPacketEncodesCallsignInPayload() {
+        val location = LocationData(0, -122.0, 47.0, 1000.0, 50f, 90f, 5f, 8f)
+
+        // Default / blank callsign: 8 ASCII spaces (0x20) at bytes 19..26
+        val defaultPayload = Gdl90OwnshipReport(location).buildPayload()
+        for (i in 19..26) {
+            assertEquals(0x20.toByte(), defaultPayload[i])
+        }
+
+        // Custom callsign "N12345": 6 ASCII chars followed by 2 spaces
+        val reportPayload = Gdl90OwnshipReport(location, callSign = "N12345").buildPayload()
+        val callsignBytes = reportPayload.sliceArray(19..26)
+        assertEquals("N12345  ", String(callsignBytes, java.nio.charset.StandardCharsets.US_ASCII))
+
+        // Also test generateOwnship
+        val framed = generateOwnship(location, callSign = "N12345")
+        // Framed starts with 0x7E, then payload bytes
+        val framedCallsign = framed.sliceArray(20..27) // 1 byte offset for 0x7E flag
+        assertEquals("N12345  ", String(framedCallsign, java.nio.charset.StandardCharsets.US_ASCII))
+    }
 }

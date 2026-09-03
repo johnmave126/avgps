@@ -66,6 +66,7 @@ class LocationService : Service() {
     private var latestPressureHpa: Float? = null
     private var reportPressureAltitude: Boolean = false
     private var altimeterSettingHpa: Double = 1013.25
+    private var callsign: String = ""
 
     override fun onCreate() {
         super.onCreate()
@@ -90,6 +91,13 @@ class LocationService : Service() {
             preferences.altimeterSettingHpa.collect { hpa ->
                 altimeterSettingHpa = hpa
                 mutableState.update { it.copy(altimeterSettingHpa = hpa) }
+            }
+        }
+
+        serviceScope.launch {
+            preferences.callsign.collect { cs ->
+                callsign = cs
+                mutableState.update { it.copy(callsign = cs) }
             }
         }
 
@@ -159,7 +167,7 @@ class LocationService : Service() {
             } else {
                 null
             }
-            val ownshipReport = generateOwnship(location, pressureAltitudeFeet)
+            val ownshipReport = generateOwnship(location, pressureAltitudeFeet, callSign = callsign)
             val ownshipAltitudeReport = generateOwnshipAltitude(location)
             serviceScope.launch {
                 broadcastUdp(targets, ownshipReport, ownshipAltitudeReport)

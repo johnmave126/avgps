@@ -70,6 +70,7 @@ class MainActivity : ComponentActivity() {
                 onSetPressureUnit = viewModel::setPressureUnit,
                 onSetReportPressureAltitude = viewModel::setReportPressureAltitude,
                 onSetAltimeterSetting = viewModel::setAltimeterSettingHpa,
+                onSetCallsign = viewModel::setCallsign,
                 onOpenSource = {
                     startActivity(Intent(Intent.ACTION_VIEW, SOURCE_URL.toUri()))
                 },

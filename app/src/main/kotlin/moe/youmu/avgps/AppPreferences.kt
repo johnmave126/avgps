@@ -30,6 +30,10 @@ class AppPreferences(private val context: Context) {
         preferences[ALTIMETER_SETTING_HPA] ?: 1013.25
     }
 
+    val callsign: Flow<String> = context.dataStore.data.map { preferences ->
+        preferences[CALLSIGN] ?: ""
+    }
+
     suspend fun setAltitudeUnit(unit: AltitudeUnit) = setEnum(ALTITUDE_UNIT, unit)
 
     suspend fun setSpeedUnit(unit: SpeedUnit) = setEnum(SPEED_UNIT, unit)
@@ -44,6 +48,10 @@ class AppPreferences(private val context: Context) {
 
     suspend fun setAltimeterSettingHpa(hpa: Double) {
         context.dataStore.edit { preferences -> preferences[ALTIMETER_SETTING_HPA] = hpa }
+    }
+
+    suspend fun setCallsign(callsign: String) {
+        context.dataStore.edit { preferences -> preferences[CALLSIGN] = callsign }
     }
 
     private suspend fun <T : Enum<T>> setEnum(key: Preferences.Key<String>, value: T) {
@@ -62,5 +70,6 @@ class AppPreferences(private val context: Context) {
         private val PRESSURE_UNIT = stringPreferencesKey("pressure_unit")
         private val REPORT_PRESSURE_ALTITUDE = booleanPreferencesKey("report_pressure_altitude")
         private val ALTIMETER_SETTING_HPA = doublePreferencesKey("altimeter_setting_hpa")
+        private val CALLSIGN = stringPreferencesKey("callsign")
     }
 }
