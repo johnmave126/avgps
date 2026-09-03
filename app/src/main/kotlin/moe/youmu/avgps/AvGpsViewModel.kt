@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import java.net.InetSocketAddress
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class AvGpsViewModel(application: Application) : AndroidViewModel(application) {
@@ -61,6 +62,18 @@ class AvGpsViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setClientEnabled(client: Client, enabled: Boolean) {
         service.value?.setEfbEnabled(client.source, enabled)
+    }
+
+    fun addManualClient(name: String, ip: String, port: Int) {
+        service.value?.addManualClient(name, ip, port)
+    }
+
+    fun updateManualClient(oldSource: InetSocketAddress, name: String, ip: String, port: Int) {
+        service.value?.updateManualClient(oldSource, name, ip, port)
+    }
+
+    fun removeClient(client: Client) {
+        service.value?.removeClient(client.source)
     }
 
     fun setAltitudeUnit(unit: AltitudeUnit) {

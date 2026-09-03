@@ -20,6 +20,8 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
@@ -27,6 +29,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
@@ -55,6 +58,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
+import java.net.InetSocketAddress
 import java.util.Locale
 import kotlin.math.roundToInt
 import kotlin.time.Duration.Companion.milliseconds
@@ -69,11 +73,16 @@ fun LocationScreen(
     modifier: Modifier = Modifier,
     onSetAltimeterSetting: (Double) -> Unit = {},
     onSetCallsign: (String) -> Unit = {},
+    onAddClient: (String, String, Int) -> Unit = { _, _, _ -> },
+    onUpdateClient: (InetSocketAddress, String, String, Int) -> Unit = { _, _, _, _ -> },
+    onRemoveClient: (Client) -> Unit = {},
 ) {
     val location = state.location
     val hasLocation = location != null
     var showAltimeterDialog by remember { mutableStateOf(false) }
     var showCallsignDialog by remember { mutableStateOf(false) }
+    var showClientDialog by remember { mutableStateOf(false) }
+    var editingClient by remember { mutableStateOf<Client?>(null) }
 
     val lastFixString = if (hasLocation) {
         val elapsedSec = ((nowEpochMs - location.timestamp) / 1000).coerceAtLeast(0)
@@ -253,12 +262,31 @@ fun LocationScreen(
                         }
                     }
 
-                    TextButton(
-                        onClick = onClearClients,
-                        enabled = state.clients.isNotEmpty(),
-                        modifier = Modifier.align(Alignment.Start),
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Text("Clear", color = MaterialTheme.colorScheme.primary)
+                        TextButton(
+                            onClick = onClearClients,
+                            enabled = state.clients.isNotEmpty(),
+                        ) {
+                            Text("Clear")
+                        }
+                        TextButton(
+                            onClick = {
+                                editingClient = null
+                                showClientDialog = true
+                            },
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Add,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp),
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Add")
+                        }
                     }
 
                     if (state.clients.isEmpty()) {
@@ -276,25 +304,58 @@ fun LocationScreen(
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
+                                    .then(
+                                        if (client.isManual) {
+                                            Modifier.clickable {
+                                                editingClient = client
+                                                showClientDialog = true
+                                            }
+                                        } else Modifier
+                                    )
                                     .padding(vertical = 8.dp),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
                                 Column(modifier = Modifier.weight(1f)) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text(
+                                            client.efb,
+                                            style = MaterialTheme.typography.titleMedium,
+                                        )
+                                        if (client.isManual) {
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Icon(
+                                                imageVector = Icons.Default.Edit,
+                                                contentDescription = "Edit manual client",
+                                                tint = MaterialTheme.colorScheme.primary,
+                                                modifier = Modifier.size(14.dp),
+                                            )
+                                        }
+                                    }
                                     Text(
-                                        client.efb,
-                                        style = MaterialTheme.typography.titleMedium,
-                                    )
-                                    Text(
-                                        "${client.source} last seen: $lastSeenText",
+                                        "${client.source.hostString}:${client.source.port} last seen: $lastSeenText",
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     )
                                 }
-                                Switch(
-                                    checked = client.isEnabled,
-                                    onCheckedChange = { onSetClientEnabled(client, it) },
-                                )
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    IconButton(
+                                        onClick = { onRemoveClient(client) },
+                                        modifier = Modifier.size(36.dp),
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.DeleteOutline,
+                                            contentDescription = "Remove client",
+                                            tint = MaterialTheme.colorScheme.error,
+                                            modifier = Modifier.size(20.dp),
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Switch(
+                                        checked = client.isEnabled,
+                                        onCheckedChange = { onSetClientEnabled(client, it) },
+                                    )
+                                }
                             }
                             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
                         }
@@ -323,6 +384,26 @@ fun LocationScreen(
             onConfirm = { newCallsign ->
                 onSetCallsign(newCallsign)
                 showCallsignDialog = false
+            },
+        )
+    }
+
+    if (showClientDialog) {
+        ClientDialog(
+            client = editingClient,
+            onDismiss = {
+                showClientDialog = false
+                editingClient = null
+            },
+            onSave = { name, ip, port ->
+                val target = editingClient
+                if (target != null) {
+                    onUpdateClient(target.source, name, ip, port)
+                } else {
+                    onAddClient(name, ip, port)
+                }
+                showClientDialog = false
+                editingClient = null
             },
         )
     }
@@ -726,6 +807,108 @@ private fun CallsignDialog(
                 TextButton(onClick = onDismiss) {
                     Text("Cancel")
                 }
+            }
+        },
+    )
+}
+
+@Composable
+private fun ClientDialog(
+    client: Client?,
+    onDismiss: () -> Unit,
+    onSave: (name: String, ip: String, port: Int) -> Unit,
+) {
+    val isEditing = client != null
+    var nameText by remember { mutableStateOf(client?.efb?.takeUnless { it.startsWith("Manual (") } ?: "") }
+    var ipText by remember { mutableStateOf(client?.source?.hostString ?: "") }
+    var portText by remember { mutableStateOf(client?.source?.port?.toString() ?: "4000") }
+
+    val focusRequester = remember { FocusRequester() }
+
+    val trimmedIp = ipText.trim()
+    val portInt = portText.trim().toIntOrNull()
+    val isValidPort = portInt != null && portInt in 1..65535
+    val isValidIp = trimmedIp.isNotEmpty() && !trimmedIp.contains(" ")
+    val canSave = isValidIp && isValidPort
+
+    LaunchedEffect(Unit) {
+        focusRequester.requestFocus()
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(if (isEditing) "Edit EFB Client" else "Add EFB Client")
+        },
+        text = {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                OutlinedTextField(
+                    value = nameText,
+                    onValueChange = { nameText = it },
+                    label = { Text("Name / Label (optional)") },
+                    placeholder = { Text("e.g. iPad ForeFlight") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    keyboardOptions = KeyboardOptions(
+                        capitalization = KeyboardCapitalization.Words,
+                        imeAction = ImeAction.Next,
+                    ),
+                )
+                OutlinedTextField(
+                    value = ipText,
+                    onValueChange = { ipText = it },
+                    label = { Text("IP Address or Hostname") },
+                    placeholder = { Text("e.g. 192.168.1.50") },
+                    singleLine = true,
+                    isError = ipText.isNotEmpty() && !isValidIp,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .focusRequester(focusRequester),
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Uri,
+                        imeAction = ImeAction.Next,
+                    ),
+                )
+                OutlinedTextField(
+                    value = portText,
+                    onValueChange = { portText = it },
+                    label = { Text("UDP Port (default 4000)") },
+                    placeholder = { Text("4000") },
+                    singleLine = true,
+                    isError = portText.isNotEmpty() && !isValidPort,
+                    modifier = Modifier.fillMaxWidth(),
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Number,
+                        imeAction = ImeAction.Done,
+                    ),
+                    keyboardActions = KeyboardActions(
+                        onDone = {
+                            if (canSave) {
+                                onSave(nameText.trim(), trimmedIp, portInt!!)
+                            }
+                        }
+                    ),
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    if (canSave) {
+                        onSave(nameText.trim(), trimmedIp, portInt!!)
+                    }
+                },
+                enabled = canSave,
+            ) {
+                Text(if (isEditing) "Save" else "Add")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
             }
         },
     )

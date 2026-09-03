@@ -71,6 +71,9 @@ class MainActivity : ComponentActivity() {
                 onSetReportPressureAltitude = viewModel::setReportPressureAltitude,
                 onSetAltimeterSetting = viewModel::setAltimeterSettingHpa,
                 onSetCallsign = viewModel::setCallsign,
+                onAddClient = viewModel::addManualClient,
+                onUpdateClient = viewModel::updateManualClient,
+                onRemoveClient = viewModel::removeClient,
                 onOpenSource = {
                     startActivity(Intent(Intent.ACTION_VIEW, SOURCE_URL.toUri()))
                 },

@@ -27,6 +27,7 @@ import kotlinx.coroutines.launch
 import java.io.IOException
 import java.net.DatagramPacket
 import java.net.DatagramSocket
+import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.time.Instant
 
@@ -220,6 +221,81 @@ class LocationService : Service() {
             publishClients()
             updateRunningStatus()
         }
+    }
+
+    fun addManualClient(name: String, ip: String, port: Int) {
+        serviceScope.launch(Dispatchers.IO) {
+            try {
+                val address = InetAddress.getByName(ip)
+                val socketAddress = InetSocketAddress(address, port)
+                val timestamp = Instant.now()
+                val displayName = name.trim().ifBlank { "Manual ($ip:$port)" }
+                val existing = clientList.find { it.source == socketAddress }
+                if (existing != null) {
+                    val index = clientList.indexOf(existing)
+                    clientList[index] = existing.copy(
+                        efb = displayName,
+                        isEnabled = true,
+                        isManual = true,
+                        lastDiscover = timestamp,
+                    )
+                } else {
+                    clientList.add(
+                        Client(
+                            source = socketAddress,
+                            efb = displayName,
+                            lastDiscover = timestamp,
+                            isEnabled = true,
+                            isManual = true,
+                        )
+                    )
+                }
+                sendUdp(socketAddress, generateID(deviceName))
+                publishClients()
+                updateRunningStatus()
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed to add manual client $ip:$port", e)
+            }
+        }
+    }
+
+    fun updateManualClient(oldSource: InetSocketAddress, name: String, ip: String, port: Int) {
+        serviceScope.launch(Dispatchers.IO) {
+            try {
+                val newAddress = InetAddress.getByName(ip)
+                val newSocketAddress = InetSocketAddress(newAddress, port)
+                val displayName = name.trim().ifBlank { "Manual ($ip:$port)" }
+                val existingIndex = clientList.indexOfFirst { it.source == oldSource }
+                if (existingIndex != -1) {
+                    val prev = clientList[existingIndex]
+                    if (oldSource == newSocketAddress) {
+                        clientList[existingIndex] = prev.copy(efb = displayName, isManual = true)
+                    } else {
+                        clientList.removeAt(existingIndex)
+                        val newClient = prev.copy(
+                            source = newSocketAddress,
+                            efb = displayName,
+                            isManual = true,
+                            lastDiscover = Instant.now(),
+                        )
+                        clientList.add(newClient)
+                        if (newClient.isEnabled) {
+                            sendUdp(newSocketAddress, generateID(deviceName))
+                        }
+                    }
+                    publishClients()
+                    updateRunningStatus()
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed to update manual client", e)
+            }
+        }
+    }
+
+    fun removeClient(source: InetSocketAddress) {
+        clientList.removeAll { it.source == source }
+        publishClients()
+        updateRunningStatus()
     }
 
     fun clearEFB() {

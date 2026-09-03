@@ -31,6 +31,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
+import java.net.InetSocketAddress
 import kotlin.time.Duration.Companion.milliseconds
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -54,6 +55,9 @@ fun AvGpsApp(
     onSetReportPressureAltitude: (Boolean) -> Unit = {},
     onSetAltimeterSetting: (Double) -> Unit = {},
     onSetCallsign: (String) -> Unit = {},
+    onAddClient: (String, String, Int) -> Unit = { _, _, _ -> },
+    onUpdateClient: (InetSocketAddress, String, String, Int) -> Unit = { _, _, _, _ -> },
+    onRemoveClient: (Client) -> Unit = {},
 ) {
     var selectedTab by remember { mutableIntStateOf(0) }
     var currentClockTime by remember { mutableLongStateOf(System.currentTimeMillis()) }
@@ -118,6 +122,9 @@ fun AvGpsApp(
                         onSetClientEnabled = onSetClientEnabled,
                         onSetAltimeterSetting = onSetAltimeterSetting,
                         onSetCallsign = onSetCallsign,
+                        onAddClient = onAddClient,
+                        onUpdateClient = onUpdateClient,
+                        onRemoveClient = onRemoveClient,
                     )
 
                     1 -> SatellitesScreen(satellites = appState.satellites)
