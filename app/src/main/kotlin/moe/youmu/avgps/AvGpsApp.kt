@@ -31,6 +31,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
+import kotlin.time.Duration.Companion.milliseconds
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -60,7 +61,7 @@ fun AvGpsApp(
     LaunchedEffect(Unit) {
         while (true) {
             currentClockTime = System.currentTimeMillis()
-            delay(1000)
+            delay(1000.milliseconds)
         }
     }
 

@@ -134,7 +134,6 @@ fun SettingsScreen(
         }
 
         item {
-            val switchEnabled = hasBarometer
             val isChecked = hasBarometer && reportPressureAltitude
             ListItem(
                 headlineContent = { Text("Report pressure altitude") },
@@ -157,7 +156,7 @@ fun SettingsScreen(
                                 onSetReportPressureAltitude(false)
                             }
                         },
-                        enabled = switchEnabled,
+                        enabled = hasBarometer,
                     )
                 },
                 colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surface),

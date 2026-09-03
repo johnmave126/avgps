@@ -46,9 +46,8 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.TextRange
-import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -58,6 +57,7 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
 import java.util.Locale
 import kotlin.math.roundToInt
+import kotlin.time.Duration.Companion.milliseconds
 
 @Composable
 fun LocationScreen(
@@ -76,7 +76,7 @@ fun LocationScreen(
     var showCallsignDialog by remember { mutableStateOf(false) }
 
     val lastFixString = if (hasLocation) {
-        val elapsedSec = ((nowEpochMs - location!!.timestamp) / 1000).coerceAtLeast(0)
+        val elapsedSec = ((nowEpochMs - location.timestamp) / 1000).coerceAtLeast(0)
         CoordinateFormatter.formatTimeSince(elapsedSec)
     } else {
         "Never"
@@ -109,7 +109,7 @@ fun LocationScreen(
                         )
                         if (hasLocation) {
                             Text(
-                                CoordinateFormatter.formatLatitudeDms(location!!.latitude),
+                                CoordinateFormatter.formatLatitudeDms(location.latitude),
                                 style = MaterialTheme.typography.headlineMedium,
                                 fontWeight = FontWeight.Normal,
                             )
@@ -139,12 +139,12 @@ fun LocationScreen(
                         ) {
                             MetricBox(
                                 label = "altitude",
-                                value = if (hasLocation) Altitude.ofMeters(location!!.altitude)
+                                value = if (hasLocation) Altitude.ofMeters(location.altitude)
                                     .format(settings.altitude) else "N/A",
                             )
                             MetricBox(
                                 label = "horizontal accuracy",
-                                value = if (hasLocation) Distance.ofMeters(location!!.horizontalAccuracy.toDouble())
+                                value = if (hasLocation) Distance.ofMeters(location.horizontalAccuracy.toDouble())
                                     .format(settings.distance) else "N/A",
                             )
                             if (state.hasBarometer) {
@@ -171,12 +171,12 @@ fun LocationScreen(
                         ) {
                             MetricBox(
                                 label = "speed",
-                                value = if (hasLocation) Speed.ofMps(location!!.speed.toDouble())
+                                value = if (hasLocation) Speed.ofMps(location.speed.toDouble())
                                     .format(settings.speed) else "N/A",
                             )
                             MetricBox(
                                 label = "vertical accuracy",
-                                value = if (hasLocation) Altitude.ofMeters(location!!.verticalAccuracy.toDouble())
+                                value = if (hasLocation) Altitude.ofMeters(location.verticalAccuracy.toDouble())
                                     .format(settings.altitude) else "N/A",
                             )
                             if (state.hasBarometer) {
@@ -196,7 +196,7 @@ fun LocationScreen(
                         ) {
                             MetricBox(
                                 label = "bearing",
-                                value = if (hasLocation) "${location!!.bearing.roundToInt()}°" else "N/A",
+                                value = if (hasLocation) "${location.bearing.roundToInt()}°" else "N/A",
                             )
                             MetricBox(
                                 label = "last fix",
@@ -204,7 +204,7 @@ fun LocationScreen(
                             )
                             MetricBox(
                                 label = "callsign",
-                                value = if (state.callsign.isNotBlank()) state.callsign else "None",
+                                value = state.callsign.ifBlank { "N/A" },
                                 onClick = { showCallsignDialog = true },
                             )
                         }
@@ -439,7 +439,7 @@ private fun AltimeterDialog(
     val focusRequester = remember { FocusRequester() }
 
     LaunchedEffect(Unit) {
-        delay(100)
+        delay(100.milliseconds)
         focusRequester.requestFocus()
     }
 
@@ -674,7 +674,7 @@ private fun CallsignDialog(
     val focusRequester = remember { FocusRequester() }
 
     LaunchedEffect(Unit) {
-        delay(100)
+        delay(100.milliseconds)
         focusRequester.requestFocus()
     }
 
