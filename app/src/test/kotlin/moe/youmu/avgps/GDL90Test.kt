@@ -55,7 +55,7 @@ class GDL90Test {
 
     @Test
     fun truncatesUtf8StringsSafely() {
-        val text = "avGPS Long Device Name"
+        val text = "Ownship Long Device Name"
         val truncated = text.truncateUtf8(16)
         val bytes = truncated.toByteArray(java.nio.charset.StandardCharsets.UTF_8)
         assertTrue(bytes.size <= 16)
@@ -70,7 +70,7 @@ class GDL90Test {
 
     @Test
     fun truncateHandlesMultiByteUtf8Characters() {
-        val text = "avGPS📱LongDeviceName"
+        val text = "Ownship📱LongDeviceName"
         val truncated = text.truncateUtf8(16)
         val bytes = truncated.toByteArray(java.nio.charset.StandardCharsets.UTF_8)
         assertTrue(bytes.size <= 16)
@@ -79,7 +79,7 @@ class GDL90Test {
 
     @Test
     fun generateIdFromStringHandlesTruncation() {
-        val packet = generateID("avGPS Very Long Device Name Exceeding 16 Bytes")
+        val packet = generateID("Ownship Very Long Device Name Exceeding 16 Bytes")
         assertEquals(0x7E, packet.first().toInt() and 0xFF)
         assertEquals(0x7E, packet.last().toInt() and 0xFF)
     }

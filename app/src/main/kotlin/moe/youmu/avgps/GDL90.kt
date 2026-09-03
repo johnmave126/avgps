@@ -317,8 +317,8 @@ data class ForeFlightIdMessage(
         // Device Serial Number: 8 bytes, all 0xFF = invalid
         writer.writeFixedPadded(ByteArray(0), 8, 0xFF.toByte())
 
-        // Device Name: 8 bytes, avGPS
-        writer.writeFixedPadded("avGPS".toByteArray(StandardCharsets.US_ASCII), 8, 0)
+        // Device Name: 8 bytes, Ownship
+        writer.writeFixedPadded("Ownship".toByteArray(StandardCharsets.US_ASCII), 8, 0)
 
         // Device Long Name: 16 bytes, will use device name
         writer.writeFixedPadded(deviceName, 16, 0)

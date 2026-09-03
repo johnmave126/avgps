@@ -42,12 +42,12 @@ private enum class UnitPickerType {
 }
 
 private const val LEGALESE =
-    "All information in avGPS is provided \"as is\", with no guarantee of completeness, " +
+    "All information in Ownship is provided \"as is\", with no guarantee of completeness, " +
             "accuracy, timeliness or of the results obtained from the use of this information, " +
             "and without warranty of any kind, express or implied, including, but not limited to " +
             "warranties of performance, merchantability and fitness for a particular purpose.\n\n" +
             "The author will not be liable to You or anyone else for any decision made or action " +
-            "taken in reliance on the information given by avGPS or for any consequential, special " +
+            "taken in reliance on the information given by Ownship or for any consequential, special " +
             "or similar damages, even if advised of the possibility of such damages."
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -324,7 +324,7 @@ fun SettingsScreen(
     if (showAboutDialog) {
         AlertDialog(
             onDismissRequest = { showAboutDialog = false },
-            title = { Text("avGPS ${BuildConfig.VERSION_NAME}") },
+            title = { Text("Ownship ${BuildConfig.VERSION_NAME}") },
             text = {
                 Text(
                     LEGALESE,

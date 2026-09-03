@@ -34,7 +34,7 @@ class LocationService : Service() {
     companion object {
         const val NOTIFICATION_CHANNEL_ID = "notify_channel"
         private const val NOTIFICATION_ID = 11111111
-        private const val NOTIFICATION_CHANNEL_NAME = "GPS Server"
+        private const val NOTIFICATION_CHANNEL_NAME = "Ownship GPS Server"
         private const val NOTIFICATION_CHANNEL_DESC = "Indicate that the GPS server is activated to feed EFBs"
         private const val TAG = "LocationService"
     }
@@ -59,7 +59,7 @@ class LocationService : Service() {
     private val mutableState = MutableStateFlow(AvGpsState())
     val state: StateFlow<AvGpsState> = mutableState.asStateFlow()
 
-    private var deviceName = "avGPS@Android"
+    private var deviceName = "Ownship@Android"
     var lastLocation: LocationData? = null
         private set
     private var latestNmeaTimestamp: Long = 0
@@ -124,7 +124,7 @@ class LocationService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        val isStopping = intent?.getBooleanExtra("avgps.disable_all", false) ?: false
+        val isStopping = intent?.getBooleanExtra("ownship.disable_all", false) ?: false
         if (isStopping) {
             for (i in clientList.indices) {
                 clientList[i] = clientList[i].copy(isEnabled = false)
@@ -301,7 +301,7 @@ class LocationService : Service() {
         val titleString = "Serving $numActiveClients client${if (numActiveClients == 1) "" else "s"}"
 
         val disableAllIntent = Intent(this, LocationService::class.java).apply {
-            putExtra("avgps.disable_all", true)
+            putExtra("ownship.disable_all", true)
         }
 
         val launchIntent = PendingIntent.getActivity(

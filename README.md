@@ -1,6 +1,6 @@
-# avgps
+# Ownship
 
-Transferring GPS-based location to EFBs.
+Transferring GPS and barometric sensor telemetry to EFBs over GDL-90.
 
 ## Install
 

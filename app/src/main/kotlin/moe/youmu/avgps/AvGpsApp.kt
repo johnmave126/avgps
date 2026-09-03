@@ -72,7 +72,7 @@ fun AvGpsApp(
                 TopAppBar(
                     title = {
                         Text(
-                            "GPS for Aviation",
+                            "Ownship",
                             fontWeight = FontWeight.SemiBold,
                         )
                     },
@@ -159,7 +159,7 @@ private fun PermissionExplanationDialog(
         title = { Text("Permissions needed for reliable GPS sharing") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text("avGPS will request the following access. You can decline and enable it later from Settings.")
+                Text("Ownship will request the following access. You can decline and enable it later from Settings.")
                 missingAccess.forEach { access ->
                     Column {
                         Text(
