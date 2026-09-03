@@ -32,10 +32,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import java.util.Locale
 
+import androidx.compose.material3.Switch
+
 private enum class UnitPickerType {
     ALTITUDE,
     SPEED,
     DISTANCE,
+    PRESSURE,
 }
 
 private const val LEGALESE =
@@ -54,13 +57,18 @@ fun SettingsScreen(
     onSetAltitudeUnit: (AltitudeUnit) -> Unit,
     onSetSpeedUnit: (SpeedUnit) -> Unit,
     onSetDistanceUnit: (DistanceUnit) -> Unit,
+    onSetPressureUnit: (PressureUnit) -> Unit,
+    onSetReportPressureAltitude: (Boolean) -> Unit,
     onOpenSource: () -> Unit,
     modifier: Modifier = Modifier,
+    hasBarometer: Boolean = false,
+    reportPressureAltitude: Boolean = false,
     missingAccess: List<RequiredAccess> = emptyList(),
     onOpenAccessSettings: (RequiredAccess) -> Unit = {},
 ) {
     var activeBottomSheet by remember { mutableStateOf<UnitPickerType?>(null) }
     var showAboutDialog by remember { mutableStateOf(false) }
+    var showCabinWarningDialog by remember { mutableStateOf(false) }
 
     LazyColumn(
         modifier = modifier
@@ -100,6 +108,58 @@ fun SettingsScreen(
                 headlineContent = { Text("Horizontal Accuracy") },
                 supportingContent = { Text(settings.distance.label.lowercase(Locale.US)) },
                 modifier = Modifier.clickable { activeBottomSheet = UnitPickerType.DISTANCE },
+                colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surface),
+            )
+        }
+
+        item {
+            ListItem(
+                headlineContent = { Text("Pressure") },
+                supportingContent = { Text(settings.pressure.label) },
+                modifier = Modifier.clickable { activeBottomSheet = UnitPickerType.PRESSURE },
+                colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surface),
+            )
+        }
+
+        item { HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp)) }
+
+        // --- Group: Barometer ---
+        item {
+            Text(
+                "Barometer",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(start = 24.dp, top = 8.dp, bottom = 8.dp),
+            )
+        }
+
+        item {
+            val switchEnabled = hasBarometer
+            val isChecked = hasBarometer && reportPressureAltitude
+            ListItem(
+                headlineContent = { Text("Report pressure altitude") },
+                supportingContent = {
+                    Text(
+                        if (hasBarometer) {
+                            "Relay barometric pressure altitude to connected EFBs"
+                        } else {
+                            "Barometer sensor is not supported on this device"
+                        }
+                    )
+                },
+                trailingContent = {
+                    Switch(
+                        checked = isChecked,
+                        onCheckedChange = { checked ->
+                            if (checked) {
+                                showCabinWarningDialog = true
+                            } else {
+                                onSetReportPressureAltitude(false)
+                            }
+                        },
+                        enabled = switchEnabled,
+                    )
+                },
                 colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surface),
             )
         }
@@ -172,6 +232,7 @@ fun SettingsScreen(
                         UnitPickerType.ALTITUDE -> "Altitude"
                         UnitPickerType.SPEED -> "Speed"
                         UnitPickerType.DISTANCE -> "Horizontal Accuracy"
+                        UnitPickerType.PRESSURE -> "Pressure"
                     },
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold,
@@ -217,9 +278,48 @@ fun SettingsScreen(
                             )
                         }
                     }
+
+                    UnitPickerType.PRESSURE -> {
+                        PressureUnit.entries.forEach { option ->
+                            UnitOptionRow(
+                                title = option.label,
+                                isSelected = settings.pressure == option,
+                                onSelect = {
+                                    onSetPressureUnit(option)
+                                    activeBottomSheet = null
+                                },
+                            )
+                        }
+                    }
                 }
             }
         }
+    }
+
+    if (showCabinWarningDialog) {
+        AlertDialog(
+            onDismissRequest = { showCabinWarningDialog = false },
+            title = { Text("Pressurized Cabin Warning") },
+            text = {
+                Text(
+                    "Pressure altitude will be relayed to connected EFBs.\n\n" +
+                            "This must NEVER be enabled in a pressurized cabin, as cabin pressure does not reflect the aircraft's actual altitude."
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    showCabinWarningDialog = false
+                    onSetReportPressureAltitude(true)
+                }) {
+                    Text("Enable")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showCabinWarningDialog = false }) {
+                    Text("Cancel")
+                }
+            },
+        )
     }
 
     if (showAboutDialog) {

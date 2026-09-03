@@ -49,6 +49,8 @@ fun AvGpsApp(
     onSetDistanceUnit: (DistanceUnit) -> Unit,
     onOpenSource: () -> Unit,
     modifier: Modifier = Modifier,
+    onSetPressureUnit: (PressureUnit) -> Unit = {},
+    onSetReportPressureAltitude: (Boolean) -> Unit = {},
 ) {
     var selectedTab by remember { mutableIntStateOf(0) }
     var currentClockTime by remember { mutableLongStateOf(System.currentTimeMillis()) }
@@ -116,11 +118,15 @@ fun AvGpsApp(
                     1 -> SatellitesScreen(satellites = appState.satellites)
                     else -> SettingsScreen(
                         settings = unitSettings,
+                        hasBarometer = appState.hasBarometer,
+                        reportPressureAltitude = appState.reportPressureAltitude,
                         missingAccess = missingAccess,
                         onOpenAccessSettings = onOpenAccessSettings,
                         onSetAltitudeUnit = onSetAltitudeUnit,
                         onSetSpeedUnit = onSetSpeedUnit,
                         onSetDistanceUnit = onSetDistanceUnit,
+                        onSetPressureUnit = onSetPressureUnit,
+                        onSetReportPressureAltitude = onSetReportPressureAltitude,
                         onOpenSource = onOpenSource,
                     )
                 }

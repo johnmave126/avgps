@@ -34,10 +34,15 @@ data class AvGpsState(
     val location: LocationData? = null,
     val clients: List<Client> = emptyList(),
     val satellites: List<SatelliteData> = emptyList(),
+    val hasBarometer: Boolean = false,
+    val pressureHpa: Float? = null,
+    val reportPressureAltitude: Boolean = false,
+    val altimeterSettingHpa: Double = 1013.25,
 )
 
 data class UnitSettings(
     val altitude: AltitudeUnit = AltitudeUnit.METERS,
     val speed: SpeedUnit = SpeedUnit.METERS_PER_SECOND,
     val distance: DistanceUnit = DistanceUnit.METERS,
+    val pressure: PressureUnit = PressureUnit.INHG,
 )

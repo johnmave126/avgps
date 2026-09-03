@@ -75,6 +75,18 @@ class AvGpsViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch { preferences.setDistanceUnit(unit) }
     }
 
+    fun setPressureUnit(unit: PressureUnit) {
+        viewModelScope.launch { preferences.setPressureUnit(unit) }
+    }
+
+    fun setReportPressureAltitude(enabled: Boolean) {
+        viewModelScope.launch { preferences.setReportPressureAltitude(enabled) }
+    }
+
+    fun setAltimeterSettingHpa(hpa: Double) {
+        viewModelScope.launch { preferences.setAltimeterSettingHpa(hpa) }
+    }
+
     override fun onCleared() {
         service.value?.setUiMonitoring(false)
         if (bound) getApplication<Application>().unbindService(connection)

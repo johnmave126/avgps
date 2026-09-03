@@ -67,6 +67,8 @@ class MainActivity : ComponentActivity() {
                 onSetAltitudeUnit = viewModel::setAltitudeUnit,
                 onSetSpeedUnit = viewModel::setSpeedUnit,
                 onSetDistanceUnit = viewModel::setDistanceUnit,
+                onSetPressureUnit = viewModel::setPressureUnit,
+                onSetReportPressureAltitude = viewModel::setReportPressureAltitude,
                 onOpenSource = {
                     startActivity(Intent(Intent.ACTION_VIEW, SOURCE_URL.toUri()))
                 },

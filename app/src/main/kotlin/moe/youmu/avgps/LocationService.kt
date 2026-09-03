@@ -12,6 +12,7 @@ import android.os.Binder
 import android.os.IBinder
 import android.provider.Settings
 import android.util.Log
+import android.hardware.SensorManager
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import kotlinx.coroutines.CoroutineScope
@@ -47,6 +48,8 @@ class LocationService : Service() {
 
     private lateinit var gnssManager: GnssManager
     private lateinit var discoveryServer: EfbDiscoveryServer
+    private lateinit var barometerManager: BarometerManager
+    private lateinit var preferences: AppPreferences
     private var notificationManager: NotificationManager? = null
 
     val clientList = mutableListOf<Client>()
@@ -60,6 +63,9 @@ class LocationService : Service() {
     var lastLocation: LocationData? = null
         private set
     private var latestNmeaTimestamp: Long = 0
+    private var latestPressureHpa: Float? = null
+    private var reportPressureAltitude: Boolean = false
+    private var altimeterSettingHpa: Double = 1013.25
 
     override fun onCreate() {
         super.onCreate()
@@ -67,6 +73,25 @@ class LocationService : Service() {
         createNotificationChannel()
 
         resolveDeviceName()
+
+        preferences = AppPreferences(this)
+        barometerManager = BarometerManager(this)
+        mutableState.update { it.copy(hasBarometer = barometerManager.isSupported) }
+
+        serviceScope.launch {
+            preferences.reportPressureAltitude.collect { enabled ->
+                reportPressureAltitude = enabled
+                mutableState.update { it.copy(reportPressureAltitude = enabled) }
+                updateRunningStatus()
+            }
+        }
+
+        serviceScope.launch {
+            preferences.altimeterSettingHpa.collect { hpa ->
+                altimeterSettingHpa = hpa
+                mutableState.update { it.copy(altimeterSettingHpa = hpa) }
+            }
+        }
 
         gnssManager = GnssManager(
             context = this,
@@ -84,6 +109,7 @@ class LocationService : Service() {
     override fun onDestroy() {
         discoveryServer.stop()
         gnssManager.stopAll()
+        barometerManager.stopListening()
         if (isForeground) stopForeground(STOP_FOREGROUND_REMOVE)
         serviceScope.cancel()
         super.onDestroy()
@@ -116,13 +142,24 @@ class LocationService : Service() {
         return true
     }
 
+    private fun handlePressureUpdate(pressureHpa: Float) {
+        latestPressureHpa = pressureHpa
+        mutableState.update { it.copy(pressureHpa = pressureHpa) }
+    }
+
     private fun handleLocationUpdate(location: LocationData) {
         lastLocation = location
         mutableState.update { it.copy(location = location) }
 
         if (shouldDeliverToClients()) {
             val targets = activeClientAddresses()
-            val ownshipReport = generateOwnship(location)
+            val pressureAltitudeFeet = if (reportPressureAltitude && latestPressureHpa != null) {
+                val altMeters = SensorManager.getAltitude(SensorManager.PRESSURE_STANDARD_ATMOSPHERE, latestPressureHpa!!)
+                Altitude.ofMeters(altMeters.toDouble()).toFeet()
+            } else {
+                null
+            }
+            val ownshipReport = generateOwnship(location, pressureAltitudeFeet)
             val ownshipAltitudeReport = generateOwnshipAltitude(location)
             serviceScope.launch {
                 broadcastUdp(targets, ownshipReport, ownshipAltitudeReport)
@@ -198,9 +235,11 @@ class LocationService : Service() {
         val deliver = shouldDeliverToClients()
         val needLocation = (uiMonitoring || deliver) && hasPermission
         val needGnss = (uiMonitoring || deliver) && hasPermission
+        val needBaro = (uiMonitoring || (deliver && reportPressureAltitude)) && barometerManager.isSupported
 
         if (needLocation) gnssManager.startLocationUpdates() else gnssManager.stopLocationUpdates()
         if (needGnss) gnssManager.startSatelliteUpdates() else gnssManager.stopSatelliteUpdates()
+        if (needBaro) barometerManager.startListening(::handlePressureUpdate) else barometerManager.stopListening()
 
         if (deliver && !isForeground && hasPermission) {
             startForeground(NOTIFICATION_ID, produceNotification())
