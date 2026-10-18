@@ -1,5 +1,7 @@
 package moe.youmu.avgps
 
+import android.content.Context
+import android.net.wifi.WifiManager
 import android.util.Log
 import org.json.JSONException
 import org.json.JSONObject
@@ -22,6 +24,7 @@ data class EFBDiscoveryMessage(
 }
 
 class EfbDiscoveryServer(
+    context: Context? = null,
     private val listenPort: Int = 63093,
     private val onDiscovery: (host: InetAddress, message: EFBDiscoveryMessage) -> Unit,
 ) {
@@ -48,12 +51,20 @@ class EfbDiscoveryServer(
             if (isNull(key)) null else optString(key, "").trim().ifEmpty { null }
     }
 
+    private val multicastLock: WifiManager.MulticastLock? =
+        (context?.applicationContext?.getSystemService(Context.WIFI_SERVICE) as? WifiManager)
+            ?.createMulticastLock("Ownship:EfbDiscovery")
+            ?.apply { setReferenceCounted(false) }
+
     private var workerThread: Thread? = null
     private var socket: DatagramSocket? = null
 
     @Synchronized
     fun start() {
-        if (workerThread != null && workerThread!!.isAlive) return
+        if (workerThread?.isAlive == true) return
+        if (multicastLock?.isHeld == false) {
+            multicastLock.acquire()
+        }
 
         workerThread = object : Thread("EFB-Discovery-Listener") {
             override fun run() {
@@ -105,5 +116,8 @@ class EfbDiscoveryServer(
         socket?.close()
         socket = null
         workerThread = null
+        if (multicastLock?.isHeld == true) {
+            multicastLock.release()
+        }
     }
 }

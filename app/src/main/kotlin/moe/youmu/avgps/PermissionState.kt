@@ -22,6 +22,10 @@ enum class RequiredAccess(val title: String, val explanation: String) {
         "Background location",
         "Keeps sending GPS data to enabled EFB clients while avGPS is not visible.",
     ),
+    LOCAL_NETWORK(
+        "Local network",
+        "Discovers EFB clients and sends GDL-90 data over Wi-Fi or hotspot.",
+    ),
     BATTERY_OPTIMIZATION(
         "Unrestricted battery use",
         "Prevents Android from suspending GPS delivery during long flights.",
@@ -36,11 +40,23 @@ enum class RequiredAccess(val title: String, val explanation: String) {
     ),
 }
 
+val localNetworkPermission: String?
+    get() = when {
+        Build.VERSION.SDK_INT >= 37 -> Manifest.permission.ACCESS_LOCAL_NETWORK
+        Build.VERSION.SDK_INT == Build.VERSION_CODES.BAKLAVA -> Manifest.permission.NEARBY_WIFI_DEVICES
+        else -> null
+    }
+
+fun Context.hasLocalNetworkPermission(): Boolean =
+    localNetworkPermission?.let(::hasPermission) ?: true
+
 fun Context.missingAccess(): List<RequiredAccess> = RequiredAccess.entries.filterNot { access ->
     when (access) {
         RequiredAccess.LOCATION -> hasPermission(Manifest.permission.ACCESS_FINE_LOCATION)
         RequiredAccess.BACKGROUND_LOCATION -> Build.VERSION.SDK_INT < Build.VERSION_CODES.Q ||
                 hasPermission(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
+
+        RequiredAccess.LOCAL_NETWORK -> hasLocalNetworkPermission()
 
         RequiredAccess.BATTERY_OPTIMIZATION ->
             (getSystemService(Context.POWER_SERVICE) as PowerManager).isIgnoringBatteryOptimizations(packageName)
@@ -59,6 +75,7 @@ fun Context.missingAccess(): List<RequiredAccess> = RequiredAccess.entries.filte
 fun Context.settingsIntent(access: RequiredAccess): Intent = when (access) {
     RequiredAccess.LOCATION,
     RequiredAccess.BACKGROUND_LOCATION,
+    RequiredAccess.LOCAL_NETWORK,
         -> Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, "package:$packageName".toUri())
 
     RequiredAccess.BATTERY_OPTIMIZATION -> Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)

@@ -58,9 +58,14 @@ fun AvGpsApp(
     onAddClient: (String, String, Int) -> Unit = { _, _, _ -> },
     onUpdateClient: (InetSocketAddress, String, String, Int) -> Unit = { _, _, _, _ -> },
     onRemoveClient: (Client) -> Unit = {},
+    onSetDiscoveryActive: (Boolean) -> Unit = {},
 ) {
     var selectedTab by remember { mutableIntStateOf(0) }
     var currentClockTime by remember { mutableLongStateOf(System.currentTimeMillis()) }
+
+    LaunchedEffect(selectedTab) {
+        onSetDiscoveryActive(selectedTab == 0)
+    }
 
     LaunchedEffect(Unit) {
         while (true) {

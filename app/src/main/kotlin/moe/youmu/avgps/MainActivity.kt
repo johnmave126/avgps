@@ -35,6 +35,10 @@ class MainActivity : ComponentActivity() {
         ActivityResultContracts.RequestPermission(),
     ) { continuePermissionRequests() }
 
+    private val localNetworkPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { continuePermissionRequests() }
+
     private val specialAccessLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult(),
     ) { continuePermissionRequests() }
@@ -74,6 +78,7 @@ class MainActivity : ComponentActivity() {
                 onAddClient = viewModel::addManualClient,
                 onUpdateClient = viewModel::updateManualClient,
                 onRemoveClient = viewModel::removeClient,
+                onSetDiscoveryActive = viewModel::setDiscoveryActive,
                 onOpenSource = {
                     startActivity(Intent(Intent.ACTION_VIEW, SOURCE_URL.toUri()))
                 },
@@ -122,6 +127,9 @@ class MainActivity : ComponentActivity() {
                     requestNext(RequiredAccess.BACKGROUND_LOCATION) &&
                     Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q ->
                 backgroundPermissionLauncher.launch(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
+
+            requestNext(RequiredAccess.LOCAL_NETWORK) && localNetworkPermission != null ->
+                localNetworkPermissionLauncher.launch(localNetworkPermission!!)
 
             requestNext(RequiredAccess.NOTIFICATIONS) && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU ->
                 notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)

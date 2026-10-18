@@ -8,11 +8,11 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.hardware.SensorManager
 import android.os.Binder
 import android.os.IBinder
 import android.provider.Settings
 import android.util.Log
-import android.hardware.SensorManager
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import kotlinx.coroutines.CoroutineScope
@@ -55,6 +55,7 @@ class LocationService : Service() {
 
     val clientList = mutableListOf<Client>()
     private var uiMonitoring = false
+    private var uiDiscoveryActive = true
     private var isForeground = false
 
     private val mutableState = MutableStateFlow(AvGpsState())
@@ -109,7 +110,7 @@ class LocationService : Service() {
             onNmeaTimestamp = { timestamp -> latestNmeaTimestamp = timestamp },
         )
 
-        discoveryServer = EfbDiscoveryServer { host, message ->
+        discoveryServer = EfbDiscoveryServer(context = this) { host, message ->
             val source = InetSocketAddress(host, message.gdl90Port)
             handleEfbDiscovered(source, message)
         }
@@ -136,20 +137,7 @@ class LocationService : Service() {
         return START_STICKY
     }
 
-    override fun onBind(intent: Intent?): IBinder {
-        discoveryServer.start()
-        return binder
-    }
-
-    override fun onRebind(intent: Intent?) {
-        super.onRebind(intent)
-        discoveryServer.start()
-    }
-
-    override fun onUnbind(intent: Intent?): Boolean {
-        discoveryServer.stop()
-        return true
-    }
+    override fun onBind(intent: Intent?): IBinder = binder
 
     private fun handlePressureUpdate(pressureHpa: Float) {
         latestPressureHpa = pressureHpa
@@ -219,6 +207,11 @@ class LocationService : Service() {
 
     fun setUiMonitoring(enabled: Boolean) {
         uiMonitoring = enabled
+        updateRunningStatus()
+    }
+
+    fun setUiDiscoveryActive(enabled: Boolean) {
+        uiDiscoveryActive = enabled
         updateRunningStatus()
     }
 
@@ -336,10 +329,12 @@ class LocationService : Service() {
         val needLocation = (uiMonitoring || deliver) && hasPermission
         val needGnss = (uiMonitoring || deliver) && hasPermission
         val needBaro = (uiMonitoring || (deliver && reportPressureAltitude)) && barometerManager.isSupported
+        val needDiscovery = uiMonitoring && uiDiscoveryActive && hasLocalNetworkPermission()
 
         if (needLocation) gnssManager.startLocationUpdates() else gnssManager.stopLocationUpdates()
         if (needGnss) gnssManager.startSatelliteUpdates() else gnssManager.stopSatelliteUpdates()
         if (needBaro) barometerManager.startListening(::handlePressureUpdate) else barometerManager.stopListening()
+        if (needDiscovery) discoveryServer.start() else discoveryServer.stop()
 
         if (deliver && !isForeground && hasPermission) {
             startForeground(NOTIFICATION_ID, produceNotification())

@@ -23,6 +23,7 @@ class AvGpsViewModel(application: Application) : AndroidViewModel(application) {
     private val service = MutableStateFlow<LocationService?>(null)
     private var bound = false
     private var monitoringRequested = false
+    private var discoveryActiveRequested = true
 
     val appState = service
         .flatMapLatest { current -> current?.state ?: flowOf(AvGpsState()) }
@@ -33,8 +34,10 @@ class AvGpsViewModel(application: Application) : AndroidViewModel(application) {
 
     private val connection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, binder: IBinder?) {
-            service.value = (binder as LocationService.LocalBinder).getService()
-            service.value?.setUiMonitoring(monitoringRequested)
+            val svc = (binder as LocationService.LocalBinder).getService()
+            service.value = svc
+            svc.setUiDiscoveryActive(discoveryActiveRequested)
+            svc.setUiMonitoring(monitoringRequested)
             bound = true
         }
 
@@ -54,6 +57,11 @@ class AvGpsViewModel(application: Application) : AndroidViewModel(application) {
     fun setMonitoring(enabled: Boolean) {
         monitoringRequested = enabled
         service.value?.setUiMonitoring(enabled)
+    }
+
+    fun setDiscoveryActive(enabled: Boolean) {
+        discoveryActiveRequested = enabled
+        service.value?.setUiDiscoveryActive(enabled)
     }
 
     fun refreshMonitoring() = service.value?.refreshMonitoring()
