@@ -22,4 +22,5 @@ jobs:
       - uses: ncipollo/release-action@v1
         with:
           artifacts: app/build/outputs/apk/release/*.apk
+          generateReleaseNotes: true
           token: ${{ secrets.GITHUB_TOKEN }}
