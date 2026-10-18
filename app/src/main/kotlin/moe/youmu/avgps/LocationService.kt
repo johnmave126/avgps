@@ -110,8 +110,8 @@ class LocationService : Service() {
         )
 
         discoveryServer = EfbDiscoveryServer { host, message ->
-            val source = InetSocketAddress(host, message.gdl90.port)
-            handleEfbDiscovered(source, message.app)
+            val source = InetSocketAddress(host, message.gdl90Port)
+            handleEfbDiscovered(source, message)
         }
     }
 
@@ -189,14 +189,30 @@ class LocationService : Service() {
         }
     }
 
-    private fun handleEfbDiscovered(source: InetSocketAddress, appName: String) {
+    @Synchronized
+    private fun handleEfbDiscovered(source: InetSocketAddress, message: EFBDiscoveryMessage) {
         val timestamp = Instant.now()
+        val deviceName = message.deviceName?.trim()?.takeIf { it.isNotEmpty() }
+        val version = message.version?.trim()?.takeIf { it.isNotEmpty() }
         val existing = clientList.find { it.source == source }
         if (existing != null) {
             val index = clientList.indexOf(existing)
-            clientList[index] = existing.copy(lastDiscover = timestamp)
+            clientList[index] = existing.copy(
+                lastDiscover = timestamp,
+                deviceName = deviceName ?: existing.deviceName,
+                version = version ?: existing.version,
+            )
         } else {
-            clientList.add(Client(source, appName, timestamp, false))
+            clientList.add(
+                Client(
+                    source = source,
+                    efb = message.app,
+                    lastDiscover = timestamp,
+                    isEnabled = false,
+                    deviceName = deviceName,
+                    version = version,
+                )
+            )
         }
         publishClients()
     }

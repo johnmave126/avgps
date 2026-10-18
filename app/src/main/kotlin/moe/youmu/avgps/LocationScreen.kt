@@ -318,10 +318,25 @@ fun LocationScreen(
                             ) {
                                 Column(modifier = Modifier.weight(1f)) {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
+                                        val title = if (!client.deviceName.isNullOrBlank()) {
+                                            "${client.deviceName} (${client.efb})"
+                                        } else {
+                                            client.efb
+                                        }
                                         Text(
-                                            client.efb,
+                                            title,
                                             style = MaterialTheme.typography.titleMedium,
+                                            modifier = Modifier.alignByBaseline(),
                                         )
+                                        if (!client.version.isNullOrBlank()) {
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Text(
+                                                "v${client.version}",
+                                                style = MaterialTheme.typography.labelMedium,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                modifier = Modifier.alignByBaseline(),
+                                            )
+                                        }
                                         if (client.isManual) {
                                             Spacer(modifier = Modifier.width(6.dp))
                                             Icon(
@@ -887,7 +902,7 @@ private fun ClientDialog(
                     keyboardActions = KeyboardActions(
                         onDone = {
                             if (canSave) {
-                                onSave(nameText.trim(), trimmedIp, portInt!!)
+                                onSave(nameText.trim(), trimmedIp, portInt)
                             }
                         }
                     ),
@@ -898,7 +913,7 @@ private fun ClientDialog(
             TextButton(
                 onClick = {
                     if (canSave) {
-                        onSave(nameText.trim(), trimmedIp, portInt!!)
+                        onSave(nameText.trim(), trimmedIp, portInt)
                     }
                 },
                 enabled = canSave,

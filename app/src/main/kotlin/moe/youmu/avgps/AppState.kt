@@ -29,6 +29,8 @@ data class Client(
     val lastDiscover: Instant,
     val isEnabled: Boolean,
     val isManual: Boolean = false,
+    val deviceName: String? = null,
+    val version: String? = null,
 )
 
 data class AvGpsState(

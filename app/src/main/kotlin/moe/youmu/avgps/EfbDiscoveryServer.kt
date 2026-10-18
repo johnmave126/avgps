@@ -1,10 +1,8 @@
 package moe.youmu.avgps
 
 import android.util.Log
-import kotlinx.serialization.SerialName
-import kotlinx.serialization.Serializable
-import kotlinx.serialization.SerializationException
-import kotlinx.serialization.json.Json
+import org.json.JSONException
+import org.json.JSONObject
 import java.io.IOException
 import java.net.DatagramPacket
 import java.net.DatagramSocket
@@ -12,28 +10,42 @@ import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.net.SocketException
 
-@Serializable
 data class EFBDiscoveryMessage(
-    @SerialName("App")
     val app: String,
-    @SerialName("GDL90")
-    val gdl90: PortInfo,
+    val gdl90Port: Int,
+    val version: String? = null,
+    val deviceName: String? = null,
 ) {
-    @Serializable
-    data class PortInfo(val port: Int) {
-        init {
-            require(port in 0..65535)
-        }
+    init {
+        require(gdl90Port in 1..65535) { "Invalid GDL90 port: $gdl90Port" }
     }
 }
 
 class EfbDiscoveryServer(
-    private val port: Int = 63093,
+    private val listenPort: Int = 63093,
     private val onDiscovery: (host: InetAddress, message: EFBDiscoveryMessage) -> Unit,
 ) {
     companion object {
         private const val TAG = "EfbDiscoveryServer"
         private const val MAX_PACKET_SIZE = 1500
+
+        internal fun decodeMessage(raw: String): EFBDiscoveryMessage {
+            val root = JSONObject(raw)
+            val gdl90 = root.getJSONObject("GDL90")
+            val port = gdl90.getInt("port")
+            val app = root.optNonBlankString("App") ?: "EFB"
+            val version = root.optNonBlankString("Version")
+            val deviceName = root.optNonBlankString("DeviceName")
+            return EFBDiscoveryMessage(
+                app = app,
+                gdl90Port = port,
+                version = version,
+                deviceName = deviceName,
+            )
+        }
+
+        private fun JSONObject.optNonBlankString(key: String): String? =
+            if (isNull(key)) null else optString(key, "").trim().ifEmpty { null }
     }
 
     private var workerThread: Thread? = null
@@ -46,10 +58,12 @@ class EfbDiscoveryServer(
         workerThread = object : Thread("EFB-Discovery-Listener") {
             override fun run() {
                 val buffer = ByteArray(MAX_PACKET_SIZE)
+                var serverSocket: DatagramSocket? = null
                 try {
-                    val serverSocket = DatagramSocket(null).apply {
+                    serverSocket = DatagramSocket(null).apply {
                         reuseAddress = true
-                        bind(InetSocketAddress(port))
+                        broadcast = true
+                        bind(InetSocketAddress(listenPort))
                     }
                     socket = serverSocket
 
@@ -57,11 +71,13 @@ class EfbDiscoveryServer(
                         try {
                             val packet = DatagramPacket(buffer, buffer.size)
                             serverSocket.receive(packet)
-                            val jsonString = String(buffer, 0, packet.length)
-                            val message: EFBDiscoveryMessage = Json.decodeFromString(jsonString)
+                            val jsonString = String(buffer, 0, packet.length, Charsets.UTF_8)
+                            val message = decodeMessage(jsonString)
                             onDiscovery(packet.address, message)
-                        } catch (_: SerializationException) {
-                            // Non-EFB datagram; ignore
+                        } catch (error: JSONException) {
+                            Log.d(TAG, "Ignoring non-EFB datagram", error)
+                        } catch (error: IllegalArgumentException) {
+                            Log.d(TAG, "Ignoring datagram with invalid port", error)
                         } catch (error: SocketException) {
                             if (!isInterrupted) Log.e(TAG, "Discovery socket failed", error)
                             break
@@ -70,10 +86,14 @@ class EfbDiscoveryServer(
                         }
                     }
                 } catch (error: Exception) {
-                    if (!isInterrupted) Log.e(TAG, "Could not bind discovery socket to port $port", error)
+                    if (!isInterrupted) Log.e(TAG, "Could not bind discovery socket to port $listenPort", error)
                 } finally {
-                    socket?.close()
-                    socket = null
+                    serverSocket?.close()
+                    synchronized(this@EfbDiscoveryServer) {
+                        if (socket === serverSocket) {
+                            socket = null
+                        }
+                    }
                 }
             }
         }.also { it.start() }
