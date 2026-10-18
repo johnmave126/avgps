@@ -48,7 +48,7 @@ class GnssManager(
                     cnr = status.getCn0DbHz(i),
                     used = status.usedInFix(i),
                 )
-            }
+            }.mergeByPhysicalSatellite()
             onSatellitesChanged(satellites)
         }
 

@@ -23,6 +23,13 @@ data class SatelliteData(
     val used: Boolean,
 )
 
+fun List<SatelliteData>.mergeByPhysicalSatellite(): List<SatelliteData> =
+    groupBy { it.type to it.id }
+        .values
+        .map { signals ->
+            signals.maxWith(compareBy<SatelliteData> { it.used }.thenBy { it.cnr })
+        }
+
 data class Client(
     val source: InetSocketAddress,
     val efb: String,
